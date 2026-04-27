@@ -8,15 +8,9 @@ from datetime import date
 st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
-# =========================
-# SESSION STATE
-# =========================
 if "doc_type" not in st.session_state:
     st.session_state.doc_type = None
 
-# =========================
-# DATA
-# =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
@@ -35,13 +29,9 @@ PROJECTS_MAP = {
 }
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
-
 UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
-# =========================
-# INPUT DEVICES
-# =========================
 devices = []
 valid = True
 
@@ -88,9 +78,6 @@ for i in range(int(count)):
         "SerialNumber": serial
     })
 
-# =========================
-# HELPERS
-# =========================
 def set_cell(ws, cell, value):
     for merged_range in ws.merged_cells.ranges:
         if cell in merged_range:
@@ -102,12 +89,10 @@ def set_cell(ws, cell, value):
     ws[cell] = value
     ws[cell].alignment = Alignment(horizontal="center", vertical="center")
 
-
 def prepare_df():
     df = pd.DataFrame(devices)
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
     return df
-
 
 def validate_devices(df):
     errors = {}
@@ -133,12 +118,10 @@ def validate_devices(df):
 
     return errors
 
-
 def show_errors(errors):
     st.error("❌ Greške:")
     for i, msgs in errors.items():
         st.warning(f"Uređaj {i+1}: " + " | ".join(set(msgs)))
-
 
 def check(df):
     if not valid:
@@ -150,9 +133,6 @@ def check(df):
         show_errors(err)
         st.stop()
 
-# =========================
-# DOCUMENT SELECT
-# =========================
 st.markdown("---")
 col1, col2 = st.columns(2)
 
@@ -191,14 +171,13 @@ if st.session_state.doc_type == "otpremnica":
             st.stop()
 
         set_cell(ws, "F4", broj)
-        set_cell(ws, "F5", datum.strftime("%d.%m.%Y"))
+        set_cell(ws, "G5", datum.strftime("%d.%m.%Y"))
 
         set_cell(ws, "G8", zaduzio)
-        set_cell(ws, "F9", objekat)
-        set_cell(ws, "F10", adresa)
-        set_cell(ws, "F11", mesto)
+        set_cell(ws, "G9", objekat)
+        set_cell(ws, "G10", adresa)
+        set_cell(ws, "G11", mesto)
 
-        # OTPREMNICA - pomereno jednu kolonu desno
         for i, d in enumerate(devices):
             r = 14 + i
             set_cell(ws, f"B{r}", i + 1)
@@ -249,18 +228,18 @@ if st.session_state.doc_type == "prijemnica":
         set_cell(ws, "F4", broj)
         set_cell(ws, "F5", datum.strftime("%d.%m.%Y"))
 
-        set_cell(ws, "B8", magacin)
+        set_cell(ws, "C8", magacin)
         set_cell(ws, "F9", objekat)
         set_cell(ws, "F10", adresa)
         set_cell(ws, "F11", mesto)
 
         for i, d in enumerate(devices):
             r = 14 + i
-            set_cell(ws, f"A{r}", i + 1)
-            set_cell(ws, f"B{r}", d["Name"])
-            set_cell(ws, f"C{r}", d["SerialNumber"])
-            set_cell(ws, f"D{r}", d["SPInventoryNumber"])
-            set_cell(ws, f"E{r}", d["InventoryNumber"])
+            set_cell(ws, f"B{r}", i + 1)
+            set_cell(ws, f"C{r}", d["Name"])
+            set_cell(ws, f"D{r}", d["SerialNumber"])
+            set_cell(ws, f"E{r}", d["SPInventoryNumber"])
+            set_cell(ws, f"F{r}", d["InventoryNumber"])
 
         out = BytesIO()
         wb.save(out)
