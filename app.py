@@ -6,21 +6,6 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# LOAD EXISTING DATA
-# =========================
-try:
-    existing_df = pd.read_excel("data.xlsx")
-except:
-    existing_df = pd.DataFrame()
-
-def exists(column, value):
-    if existing_df is None or existing_df.empty:
-        return False
-    if column not in existing_df.columns:
-        return False
-    return str(value) in existing_df[column].astype(str).values
-
-# =========================
 # DATA
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
@@ -73,36 +58,39 @@ APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 devices = []
 valid = True
 
-# session duplicates (extra safety)
-sp_set = set()
-inv_set = set()
-serial_set = set()
-
 count = st.number_input("Broj uređaja", 1, 50, 1)
 
 for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
-    # NAME
+    # =========================
+    # NAME (OBAVEZNO)
+    # =========================
     name = st.text_input("Name *", key=f"name{i}")
     if not name:
         st.error("❌ Name je obavezan")
         valid = False
 
-    # VENDOR
+    # =========================
+    # VENDOR (UPS ONLY)
+    # =========================
     if name == "UPS":
         vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
     else:
         vendor = st.text_input("Vendor", key=f"vendor{i}")
 
-    # MODEL
+    # =========================
+    # MODEL (OPTIONAL)
+    # =========================
     if vendor == "APC":
         model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
     else:
         model = st.text_input("Model", key=f"model{i}")
 
-    # TYPE
+    # =========================
+    # TYPE (ICONS UI)
+    # =========================
     type_label = st.selectbox(
         "Type *",
         [""] + TYPE_OPTIONS,
@@ -113,7 +101,9 @@ for i in range(int(count)):
         st.error("❌ Type je obavezan")
         valid = False
 
-    # SP
+    # =========================
+    # SP (OBAVEZNO)
+    # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
 
@@ -128,42 +118,25 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # DUPLICATE CHECK (EXCEL + SESSION)
+    # OPTIONAL FIELDS
     # =========================
-    if sp_clean:
-        if exists("SPInventoryNumber", sp_clean) or sp_clean in sp_set:
-            st.error("❌ SP već postoji")
-            valid = False
-        sp_set.add(sp_clean)
-
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
     serial = st.text_input("SerialNumber", key=f"serial{i}")
 
-    if inventory:
-        if exists("InventoryNumber", inventory) or inventory in inv_set:
-            st.error("❌ Inventory već postoji")
-            valid = False
-        inv_set.add(inventory)
-
-    if serial:
-        if exists("SerialNumber", serial) or serial in serial_set:
-            st.error("❌ Serial već postoji")
-            valid = False
-        serial_set.add(serial)
-
-    # OPTIONAL
     deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
     incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
 
     project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
     project_value = PROJECTS_MAP.get(project_label, "")
 
+    # =========================
     # SAVE
+    # =========================
     devices.append({
         "Name": name,
         "Vendor": vendor,
         "Model": model,
-        "Type": type_label,
+        "Type": type_label,  # UI sa ikonama
         "SPInventoryNumber": sp_clean,
         "InventoryNumber": inventory,
         "SerialNumber": serial,
@@ -173,7 +146,7 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT
+# EXPORT (CLEAN TYPE)
 # =========================
 if st.button("📥 Download Excel"):
 
@@ -183,6 +156,7 @@ if st.button("📥 Download Excel"):
 
     df = pd.DataFrame(devices)
 
+    # 👉 uklanjanje ikonica iz Type kolone
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
