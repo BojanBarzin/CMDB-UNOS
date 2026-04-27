@@ -6,37 +6,7 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# DROPDOWNS
-# =========================
-DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
-INCIDENT_STATES = ["Operational", "Incident"]
-
-TYPE_OPTIONS = {
-    "💵 Cash drawer": "Cash drawer",
-    "📟 Cradle": "Cradle",
-    "☎️ IP Phone": "IP Phone",
-    "🖥️ Monitor": "Monitor",
-    "🖥️ Monitor Touch Screen": "Monitor Touch Screen",
-    "🧾 Printer Pos": "Printer Pos",
-    "🏷️ Printer label": "Printer label",
-    "📡 Router": "Router",
-    "🔀 Switch": "Switch",
-    "📟 Scanner Counter": "Scanner Counter",
-    "✋ Scanner Hand": "Scanner Hand",
-    "📱 Scanner Terminal": "Scanner Terminal",
-    "🔋 UPS": "UPS"
-}
-
-PROJECTS_MAP = {
-    "107 Tendam": "107",
-    "108 Deichmann": "108",
-    "109 Takko": "109"
-}
-
-PROJECTS_LABELS = list(PROJECTS_MAP.keys())
-
-# =========================
-# UPS DEPENDENCY
+# CONSTANTS
 # =========================
 UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 
@@ -55,49 +25,36 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # TYPE (ICONS UI)
-    # =========================
-    type_label = st.selectbox(
-        "Type *",
-        list(TYPE_OPTIONS.keys()),
-        key=f"type{i}"
-    )
-    type_value = TYPE_OPTIONS[type_label]
-
-    # =========================
-    # NAME
+    # 1. NAME (obavezno)
     # =========================
     name = st.text_input("Name *", key=f"name{i}")
 
     # =========================
-    # UPS LOGIC
+    # 2. VENDOR (uvek postoji)
     # =========================
-    vendor = ""
-    model = ""
-
     if name == "UPS":
-
         vendor = st.selectbox(
-            "Vendor *",
+            "Vendor",
             UPS_VENDORS,
             key=f"vendor{i}"
         )
-
-        if vendor == "APC":
-            model = st.selectbox(
-                "Model *",
-                APC_MODELS,
-                key=f"model{i}"
-            )
-        else:
-            model = st.text_input("Model *", key=f"model{i}")
-
     else:
         vendor = st.text_input("Vendor", key=f"vendor{i}")
-        model = st.text_input("Model", key=f"model{i}")
 
     # =========================
-    # SP VALIDATION
+    # 3. MODEL (uvek postoji)
+    # =========================
+    if vendor == "APC":
+        model = st.selectbox(
+            "Model *",
+            APC_MODELS,
+            key=f"model{i}"
+        )
+    else:
+        model = st.text_input("Model *", key=f"model{i}")
+
+    # =========================
+    # 4. SP (obavezno)
     # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
@@ -120,26 +77,16 @@ for i in range(int(count)):
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
-    deployment = st.selectbox("Deployment State *", DEPLOYMENT_STATES, key=f"dep{i}")
-    incident = st.selectbox("Incident State *", INCIDENT_STATES, key=f"inc{i}")
-
-    project_label = st.selectbox("Project *", PROJECTS_LABELS, key=f"proj{i}")
-    project_value = PROJECTS_MAP[project_label]
-
     # =========================
     # SAVE
     # =========================
     devices.append({
         "Name": name,
-        "Type": type_value,
         "Vendor": vendor,
         "Model": model,
-        "SerialNumber": serial,
-        "InventoryNumber": inventory,
         "SPInventoryNumber": sp_clean,
-        "Deployment State": deployment,
-        "Incident State": incident,
-        "Project": project_value
+        "SerialNumber": serial,
+        "InventoryNumber": inventory
     })
 
 # =========================
