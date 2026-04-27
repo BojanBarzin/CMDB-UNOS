@@ -3,6 +3,7 @@ import pandas as pd
 from io import BytesIO
 
 st.set_page_config(page_title="CMDB Unos", layout="centered")
+
 st.title("📦 CMDB Unos")
 
 # =========================
@@ -12,38 +13,34 @@ DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
 TYPE_OPTIONS = [
-    "UPS",
+    "Cash drawer",
+    "Cradle",
+    "IP Phone",
+    "Monitor",
+    "Monitor Touch Screen",
+    "Printer Pos",
     "Printer label",
     "Router",
-    "Monitor",
-    "IP Phone"
+    "Switch",
+    "Scanner Counter",
+    "Scanner Hand",
+    "Scanner Terminal",
+    "UPS"
 ]
 
 PROJECTS_MAP = {
     "107 Tendam": "107",
     "108 Deichmann": "108",
-    "109 Takko": "109"
+    "109 Takko": "109",
+    "112 Mercator-S": "112",
+    "115 H&M": "115",
+    "118 Metre Cash & Carry": "118",
+    "119 Ikea": "119",
+    "123 Decathlon": "123",
+    "193 Lidl": "193"
 }
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
-
-# =========================
-# DEPENDENCY MAP
-# =========================
-TYPE_VENDOR_MODEL = {
-    "UPS": {
-        "APC": ["Smart-UPS 1000", "Smart-UPS 1500"],
-        "Eaton": ["Eaton 5E", "Eaton 9PX"]
-    },
-    "Printer label": {
-        "Zebra": ["ZD220", "ZD421"],
-        "Brother": ["QL-820NWB"]
-    },
-    "Router": {
-        "Cisco": ["ISR 1100", "ISR 4000"],
-        "TP-Link": ["Archer C6", "Archer AX50"]
-    }
-}
 
 # =========================
 # STATE
@@ -58,38 +55,28 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # TYPE FIRST (DRIVES FLOW)
-    # =========================
-    type_selected = st.selectbox(
-        "Type *",
-        TYPE_OPTIONS,
-        key=f"type{i}"
-    )
-
-    # =========================
-    # NAME
+    # 1. NAME
     # =========================
     name = st.text_input("Name *", key=f"name{i}")
+    if not name:
+        st.error("❌ Name je obavezan")
+        valid = False
 
     # =========================
-    # DEPENDENT VENDOR
+    # 2. VENDOR
     # =========================
-    vendors = list(TYPE_VENDOR_MODEL.get(type_selected, {"Default": []}).keys())
-
-    if len(vendors) > 0:
-        vendor = st.selectbox("Vendor *", vendors, key=f"vendor{i}")
-    else:
-        vendor = st.text_input("Vendor", key=f"vendor{i}")
+    vendor = st.text_input("Vendor *", key=f"vendor{i}")
+    if not vendor:
+        st.error("❌ Vendor je obavezan")
+        valid = False
 
     # =========================
-    # DEPENDENT MODEL
+    # 3. MODEL
     # =========================
-    models = TYPE_VENDOR_MODEL.get(type_selected, {}).get(vendor, [])
-
-    if models:
-        model = st.selectbox("Model *", models, key=f"model{i}")
-    else:
-        model = st.text_input("Model *", key=f"model{i}")
+    model = st.text_input("Model *", key=f"model{i}")
+    if not model:
+        st.error("❌ Model je obavezan")
+        valid = False
 
     # =========================
     # SP VALIDATION
@@ -98,25 +85,50 @@ for i in range(int(count)):
     sp_clean = sp.strip()
 
     if not sp_clean:
-        st.error("❌ SP obavezan")
+        st.error("❌ SP je obavezan")
         valid = False
+
     elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati 7 karaktera")
+        st.error("❌ SP mora imati tačno 7 karaktera")
         valid = False
+
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
         st.error("❌ SP mora počinjati sa FS ili SP")
         valid = False
 
     # =========================
-    # OPTIONAL
+    # TYPE
+    # =========================
+    type_ = st.selectbox(
+        "Type *",
+        TYPE_OPTIONS,
+        key=f"type{i}"
+    )
+
+    # =========================
+    # OPTIONAL FIELDS
     # =========================
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
-    deployment = st.selectbox("Deployment State", DEPLOYMENT_STATES, key=f"dep{i}")
-    incident = st.selectbox("Incident State", INCIDENT_STATES, key=f"inc{i}")
+    deployment = st.selectbox(
+        "Deployment State *",
+        DEPLOYMENT_STATES,
+        key=f"dep{i}"
+    )
 
-    project_label = st.selectbox("Project", PROJECTS_LABELS, key=f"proj{i}")
+    incident = st.selectbox(
+        "Incident State *",
+        INCIDENT_STATES,
+        key=f"inc{i}"
+    )
+
+    project_label = st.selectbox(
+        "Project *",
+        PROJECTS_LABELS,
+        key=f"proj{i}"
+    )
+
     project_value = PROJECTS_MAP[project_label]
 
     # =========================
@@ -124,9 +136,9 @@ for i in range(int(count)):
     # =========================
     devices.append({
         "Name": name,
-        "Type": type_selected,
         "Vendor": vendor,
         "Model": model,
+        "Type": type_,
         "SerialNumber": serial,
         "InventoryNumber": inventory,
         "SPInventoryNumber": sp_clean,
@@ -141,7 +153,7 @@ for i in range(int(count)):
 if st.button("📥 Download Excel"):
 
     if not valid:
-        st.error("❌ Greške u unosu")
+        st.error("❌ Ne može download - postoje greške u unosu")
         st.stop()
 
     df = pd.DataFrame(devices)
