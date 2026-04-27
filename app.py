@@ -3,7 +3,49 @@ import pandas as pd
 from io import BytesIO
 
 st.set_page_config(page_title="CMDB Unos", layout="centered")
-st.title("📦 CMDB Unos")
+
+st.title("CMDB Unos")
+
+# =========================
+# CLEAN UI (neutral styling)
+# =========================
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 2rem;
+        max-width: 1100px;
+    }
+
+    h1 {
+        font-weight: 600;
+        font-size: 28px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# =========================
+# LOAD EXISTING CMDB (DUP CHECK)
+# =========================
+existing_file = st.file_uploader(
+    "Učitaj postojeći CMDB Excel (za proveru duplikata)",
+    type=["xlsx"]
+)
+
+existing_df = None
+
+if existing_file:
+    existing_df = pd.read_excel(existing_file)
+
+def is_duplicate(column, value):
+    if existing_df is None or value == "":
+        return False
+    if column not in existing_df.columns:
+        return False
+    return str(value) in existing_df[column].astype(str).values
 
 # =========================
 # DATA
@@ -62,66 +104,64 @@ count = st.number_input("Broj uređaja", 1, 50, 1)
 
 for i in range(int(count)):
     st.markdown("---")
-    st.subheader(f"📦 Uređaj {i+1}")
+    st.subheader(f"Uređaj {i+1}")
 
-    # =========================
-    # NAME (OBAVEZNO)
-    # =========================
+    # NAME
     name = st.text_input("Name *", key=f"name{i}")
     if not name:
-        st.error("❌ Name je obavezan")
+        st.error("Name je obavezan")
         valid = False
 
-    # =========================
-    # VENDOR (UPS ONLY)
-    # =========================
+    # VENDOR
     if name == "UPS":
         vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
     else:
         vendor = st.text_input("Vendor", key=f"vendor{i}")
 
-    # =========================
-    # MODEL (OPTIONAL)
-    # =========================
+    # MODEL
     if vendor == "APC":
         model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
     else:
         model = st.text_input("Model", key=f"model{i}")
 
-    # =========================
-    # TYPE (ICONS UI)
-    # =========================
+    # TYPE
     type_label = st.selectbox(
         "Type *",
-        [""] + TYPE_OPTIONS,
+        TYPE_OPTIONS,
         key=f"type{i}"
     )
 
     if not type_label:
-        st.error("❌ Type je obavezan")
+        st.error("Type je obavezan")
         valid = False
 
-    # =========================
-    # SP (OBAVEZNO)
-    # =========================
+    # SP
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
 
     if not sp_clean:
-        st.error("❌ SP je obavezan")
+        st.error("SP je obavezan")
         valid = False
     elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati tačno 7 karaktera")
+        st.error("SP mora imati 7 karaktera")
         valid = False
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
-        st.error("❌ SP mora počinjati sa FS ili SP")
+        st.error("SP mora počinjati sa FS ili SP")
         valid = False
 
-    # =========================
-    # OPTIONAL FIELDS
-    # =========================
+    if is_duplicate("SPInventoryNumber", sp_clean):
+        st.error("SP već postoji")
+        valid = False
+
+    # OPTIONAL
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
     serial = st.text_input("SerialNumber", key=f"serial{i}")
+
+    if is_duplicate("InventoryNumber", inventory):
+        st.warning("Inventory već postoji")
+
+    if is_duplicate("SerialNumber", serial):
+        st.warning("Serial već postoji")
 
     deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
     incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
@@ -129,14 +169,12 @@ for i in range(int(count)):
     project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
     project_value = PROJECTS_MAP.get(project_label, "")
 
-    # =========================
     # SAVE
-    # =========================
     devices.append({
         "Name": name,
         "Vendor": vendor,
         "Model": model,
-        "Type": type_label,  # UI sa ikonama
+        "Type": type_label,
         "SPInventoryNumber": sp_clean,
         "InventoryNumber": inventory,
         "SerialNumber": serial,
@@ -146,17 +184,17 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT (CLEAN TYPE)
+# EXPORT
 # =========================
-if st.button("📥 Download Excel"):
+if st.button("Download Excel"):
 
     if not valid:
-        st.error("❌ Greške u unosu")
+        st.error("Greške u unosu")
         st.stop()
 
     df = pd.DataFrame(devices)
 
-    # 👉 uklanjanje ikonica iz Type kolone
+    # clean type for Excel
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
@@ -164,7 +202,7 @@ if st.button("📥 Download Excel"):
         df.to_excel(writer, index=False, sheet_name="CMDB")
 
     st.download_button(
-        "📥 Preuzmi Excel",
+        "Preuzmi Excel",
         data=output.getvalue(),
         file_name="cmdb_unos.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
