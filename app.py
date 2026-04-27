@@ -65,7 +65,7 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # 1. NAME (OBAVEZNO)
+    # NAME (OBAVEZNO)
     # =========================
     name = st.text_input("Name *", key=f"name{i}")
     if not name:
@@ -73,7 +73,7 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # VENDOR (OPTIONAL)
+    # VENDOR (UPS ONLY)
     # =========================
     if name == "UPS":
         vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
@@ -89,7 +89,7 @@ for i in range(int(count)):
         model = st.text_input("Model", key=f"model{i}")
 
     # =========================
-    # 2. TYPE (OBAVEZNO)
+    # TYPE (ICONS UI)
     # =========================
     type_label = st.selectbox(
         "Type *",
@@ -102,7 +102,7 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # 3. SP (OBAVEZNO)
+    # SP (OBAVEZNO)
     # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
@@ -136,7 +136,7 @@ for i in range(int(count)):
         "Name": name,
         "Vendor": vendor,
         "Model": model,
-        "Type": type_label,
+        "Type": type_label,  # UI sa ikonama
         "SPInventoryNumber": sp_clean,
         "InventoryNumber": inventory,
         "SerialNumber": serial,
@@ -146,7 +146,7 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT
+# EXPORT (CLEAN TYPE)
 # =========================
 if st.button("📥 Download Excel"):
 
@@ -155,6 +155,9 @@ if st.button("📥 Download Excel"):
         st.stop()
 
     df = pd.DataFrame(devices)
+
+    # 👉 uklanjanje ikonica iz Type kolone
+    df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
