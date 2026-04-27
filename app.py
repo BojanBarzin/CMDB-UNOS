@@ -30,6 +30,9 @@ PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
+# =========================
+# STATE
+# =========================
 devices = []
 valid = True
 
@@ -86,7 +89,7 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT + DUP CHECK
+# EXPORT + DUP CHECK + UX
 # =========================
 if st.button("📥 Download Excel"):
 
@@ -96,31 +99,65 @@ if st.button("📥 Download Excel"):
 
     df = pd.DataFrame(devices)
 
-    # =========================
-    # LOAD EXISTING (SAMO OVDE)
-    # =========================
     try:
         existing_df = pd.read_excel("data.xlsx")
     except:
         existing_df = pd.DataFrame()
 
-    # =========================
-    # DUP CHECK (BRZO I JEDNOM)
-    # =========================
+    error_rows = []
+    error_indexes = []
+
+    # CHECK EXISTING
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         if col in existing_df.columns:
-            duplicates = df[df[col].isin(existing_df[col])]
-            if not duplicates.empty:
-                st.error(f"❌ Već postoji {col}")
-                st.stop()
+            existing_values = set(existing_df[col].astype(str))
+            for idx, val in enumerate(df[col]):
+                if val and val in existing_values:
+                    error_rows.append({
+                        **df.iloc[idx],
+                        "Error": f"{col} već postoji: {val}"
+                    })
+                    error_indexes.append(idx)
 
-    # duplikati u samom unosu
+    # CHECK INPUT DUPLICATES
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
-        if df[col].duplicated().any():
-            st.error(f"❌ Duplikati u unetim podacima: {col}")
-            st.stop()
+        dup_mask = df[col].duplicated(keep=False)
+        for idx in df[dup_mask].index:
+            val = df.loc[idx, col]
+            if val:
+                error_rows.append({
+                    **df.loc[idx],
+                    "Error": f"Duplikat u unosu ({col}): {val}"
+                })
+                error_indexes.append(idx)
 
-    # clean type
+    # AKO POSTOJE GREŠKE
+    if error_rows:
+        st.error("❌ Pronađeni duplikati – pogledaj dole")
+
+        error_df = pd.DataFrame(error_rows).drop_duplicates()
+
+        def highlight(row):
+            return ["background-color: #ffcccc"] * len(row)
+
+        st.dataframe(error_df.style.apply(highlight, axis=1))
+
+        # SCROLL NA PRVI PROBLEM
+        first_error = error_indexes[0]
+
+        st.markdown(f"""
+        <script>
+        const inputs = window.parent.document.querySelectorAll('input');
+        if(inputs[{first_error * 6}] ){{
+            inputs[{first_error * 6}].scrollIntoView({{behavior: 'smooth', block: 'center'}});
+            inputs[{first_error * 6}].style.border = "3px solid red";
+        }}
+        </script>
+        """, unsafe_allow_html=True)
+
+        st.stop()
+
+    # EXPORT NORMALNO
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
