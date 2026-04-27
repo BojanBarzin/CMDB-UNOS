@@ -8,9 +8,18 @@ from datetime import date
 st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
+# =========================
+# SESSION STATE
+# =========================
 if "doc_type" not in st.session_state:
     st.session_state.doc_type = None
 
+if "internal_transfer" not in st.session_state:
+    st.session_state.internal_transfer = False
+
+# =========================
+# DATA
+# =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
@@ -32,6 +41,9 @@ PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
+# =========================
+# DEVICE INPUT
+# =========================
 devices = []
 valid = True
 
@@ -78,6 +90,9 @@ for i in range(int(count)):
         "SerialNumber": serial
     })
 
+# =========================
+# HELPERS
+# =========================
 def set_cell(ws, cell, value):
     for merged_range in ws.merged_cells.ranges:
         if cell in merged_range:
@@ -89,10 +104,12 @@ def set_cell(ws, cell, value):
     ws[cell] = value
     ws[cell].alignment = Alignment(horizontal="center", vertical="center")
 
+
 def prepare_df():
     df = pd.DataFrame(devices)
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
     return df
+
 
 def validate_devices(df):
     errors = {}
@@ -118,10 +135,12 @@ def validate_devices(df):
 
     return errors
 
+
 def show_errors(errors):
     st.error("❌ Greške:")
     for i, msgs in errors.items():
         st.warning(f"Uređaj {i+1}: " + " | ".join(set(msgs)))
+
 
 def check(df):
     if not valid:
@@ -133,14 +152,52 @@ def check(df):
         show_errors(err)
         st.stop()
 
+
+@st.cache_data
+def load_cmdb_data():
+    try:
+        return pd.read_excel("data.xlsx", dtype=str).fillna("")
+    except:
+        return pd.DataFrame()
+
+
+def find_and_fill_internal(search_col, session_key):
+    df = load_cmdb_data()
+
+    if df.empty or search_col not in df.columns:
+        return
+
+    value = st.session_state.get(session_key, "").strip()
+
+    if not value:
+        return
+
+    match = df[
+        df[search_col].astype(str).str.strip().str.upper() == value.upper()
+    ]
+
+    if not match.empty:
+        row = match.iloc[0]
+
+        st.session_state["int_sp"] = row.get("SPInventoryNumber", "")
+        st.session_state["int_inv"] = row.get("InventoryNumber", "")
+        st.session_state["int_serial"] = row.get("SerialNumber", "")
+        st.session_state["int_name"] = row.get("Name", "")
+        st.session_state["int_model"] = row.get("Model", "")
+
+# =========================
+# DOCUMENT SELECT
+# =========================
 st.markdown("---")
 col1, col2 = st.columns(2)
 
 if col1.button("📄 Otpremnica"):
     st.session_state.doc_type = "otpremnica"
+    st.session_state.internal_transfer = False
 
 if col2.button("📄 Prijemnica"):
     st.session_state.doc_type = "prijemnica"
+    st.session_state.internal_transfer = False
 
 # =========================
 # OTPREMNICA
@@ -248,5 +305,86 @@ if st.session_state.doc_type == "prijemnica":
             "Preuzmi Prijemnicu",
             data=out.getvalue(),
             file_name="prijemnica.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+# =========================
+# INTERNI PRENOS BG -> NS
+# =========================
+st.markdown("---")
+st.subheader("🔁 Interni prenos BG → NS")
+
+if st.button("Interni prenos BG → NS"):
+    st.session_state.internal_transfer = True
+    st.session_state.doc_type = None
+
+if st.session_state.internal_transfer:
+
+    for key in ["int_sp", "int_inv", "int_serial", "int_name", "int_model"]:
+        if key not in st.session_state:
+            st.session_state[key] = ""
+
+    st.info("Unesi bilo koji podatak: SP broj, inventarni broj ili serijski broj.")
+
+    st.text_input(
+        "SPInventoryNumber",
+        key="int_sp",
+        on_change=find_and_fill_internal,
+        args=("SPInventoryNumber", "int_sp")
+    )
+
+    st.text_input(
+        "InventoryNumber",
+        key="int_inv",
+        on_change=find_and_fill_internal,
+        args=("InventoryNumber", "int_inv")
+    )
+
+    st.text_input(
+        "SerialNumber",
+        key="int_serial",
+        on_change=find_and_fill_internal,
+        args=("SerialNumber", "int_serial")
+    )
+
+    st.text_input("Name", key="int_name", disabled=True)
+    st.text_input("Model", key="int_model", disabled=True)
+
+    if st.button("Preuzmi otpremnicu za interni prenos"):
+
+        if not st.session_state["int_sp"]:
+            st.error("❌ Prvo unesi SP / Inventory / Serial da aplikacija pronađe uređaj.")
+            st.stop()
+
+        try:
+            wb = load_workbook("otpremnica_template.xlsx")
+            ws = wb.active
+        except:
+            st.error("❌ Nije pronađen fajl: otpremnica_template.xlsx")
+            st.stop()
+
+        set_cell(ws, "F4", "BG-NS")
+        set_cell(ws, "G5", date.today().strftime("%d.%m.%Y"))
+
+        set_cell(ws, "G8", "FSNS")
+        set_cell(ws, "G9", "")
+        set_cell(ws, "G10", "")
+        set_cell(ws, "G11", "")
+
+        r = 14
+        set_cell(ws, f"B{r}", 1)
+        set_cell(ws, f"C{r}", st.session_state["int_name"])
+        set_cell(ws, f"D{r}", st.session_state["int_model"])
+        set_cell(ws, f"E{r}", st.session_state["int_inv"])
+        set_cell(ws, f"F{r}", st.session_state["int_serial"])
+        set_cell(ws, f"G{r}", st.session_state["int_sp"])
+
+        out = BytesIO()
+        wb.save(out)
+
+        st.download_button(
+            "Preuzmi internu otpremnicu",
+            data=out.getvalue(),
+            file_name="interni_prenos_BG_NS.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
