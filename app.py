@@ -9,9 +9,22 @@ st.title("📦 CMDB Unos")
 # =========================
 # DROPDOWNS
 # =========================
-DEPLOYMENT_STATES = ["In Use", "In Stock", "Retired", "Repair"]
-INCIDENT_STATES = ["None", "Open", "Closed", "Pending"]
-PROJECTS = ["Project A", "Project B", "Project C", "Other"]
+DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
+INCIDENT_STATES = ["Operational", "Incident"]
+
+PROJECTS_MAP = {
+    "107 Tendam": "107",
+    "108 Deichmann": "108",
+    "109 Takko": "109",
+    "112 Mercator-S": "112",
+    "115 H&M": "115",
+    "118 Metre Cash & Carry": "118",
+    "119 Ikea": "119",
+    "123 Decathlon": "123",
+    "193 Lidl": "193"
+}
+
+PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 
 # =========================
 # LOAD MASTER (duplikati)
@@ -50,37 +63,40 @@ for i in range(int(count)):
     model = st.text_input("Model *", key=f"model{i}")
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
 
-    # =========================
-    # OSTALA POLJA
-    # =========================
     deployment = st.selectbox(
-        "Deployment State",
+        "Deployment State *",
         DEPLOYMENT_STATES,
         key=f"dep{i}"
     )
 
     incident = st.selectbox(
-        "Incident State",
+        "Incident State *",
         INCIDENT_STATES,
         key=f"inc{i}"
     )
 
+    project_label = st.selectbox(
+        "Project *",
+        PROJECTS_LABELS,
+        key=f"proj{i}"
+    )
+
+    project_value = PROJECTS_MAP[project_label]
+
+    # =========================
+    # OSTALA POLJA
+    # =========================
     vendor = st.text_input("Vendor", key=f"vendor{i}")
     type_ = st.text_input("Type", key=f"type{i}")
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
-    project = st.selectbox(
-        "Project",
-        PROJECTS,
-        key=f"proj{i}"
-    )
-
     # =========================
-    # VALIDACIJA
+    # VALIDACIJA (STRICT)
     # =========================
-    if name and model and sp:
+    if name and model and sp and deployment and incident and project_value:
 
+        # duplikati
         if exists(sp, "SPInventoryNumber"):
             st.error("❌ SP već postoji")
 
@@ -90,7 +106,7 @@ for i in range(int(count)):
         if inventory and exists(inventory, "InventoryNumber"):
             st.error("❌ Inventory već postoji")
 
-        st.success("✔ OK")
+        st.success("✔ Uređaj validan")
 
         devices.append({
             "Name": name.strip(),
@@ -102,11 +118,11 @@ for i in range(int(count)):
             "SPInventoryNumber": sp.strip(),
             "Deployment State": deployment,
             "Incident State": incident,
-            "Project": project
+            "Project": project_value
         })
 
     else:
-        st.warning("⚠ Name, Model i SP su obavezni")
+        st.warning("⚠ Popuni sva OBAVEZNA polja")
 
 # =========================
 # EXPORT
