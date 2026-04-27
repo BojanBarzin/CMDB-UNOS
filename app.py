@@ -3,16 +3,7 @@ import pandas as pd
 from io import BytesIO
 
 st.set_page_config(page_title="CMDB Unos", layout="centered")
-
-st.title("CMDB Unos")
-
-# =========================
-# LOAD LOCAL DATA (ONLY FOR EXPORT, NOT REAL-TIME CHECK)
-# =========================
-try:
-    existing_df = pd.read_excel("data.xlsx")
-except:
-    existing_df = pd.DataFrame()
+st.title("📦 CMDB Unos")
 
 # =========================
 # DATA
@@ -58,6 +49,9 @@ PROJECTS_MAP = {
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 
+UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
+APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
+
 # =========================
 # STATE
 # =========================
@@ -68,24 +62,35 @@ count = st.number_input("Broj uređaja", 1, 50, 1)
 
 for i in range(int(count)):
     st.markdown("---")
-    st.subheader(f"Uređaj {i+1}")
+    st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # FIX 2 - LAYOUT
+    # FIX 2 - LAYOUT (3 COLUMNS)
     # =========================
     col1, col2, col3 = st.columns(3)
 
     with col1:
         name = st.text_input("Name *", key=f"name{i}")
-        vendor = st.text_input("Vendor", key=f"vendor{i}")
+        if name == "UPS":
+            vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
+        else:
+            vendor = st.text_input("Vendor", key=f"vendor{i}")
 
     with col2:
-        model = st.text_input("Model", key=f"model{i}")
+        if vendor == "APC":
+            model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
+        else:
+            model = st.text_input("Model", key=f"model{i}")
+
         type_label = st.selectbox(
             "Type *",
             [""] + TYPE_OPTIONS,
             key=f"type{i}"
         )
+
+        if not type_label:
+            st.error("❌ Type je obavezan")
+            valid = False
 
     with col3:
         sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
@@ -93,30 +98,26 @@ for i in range(int(count)):
         serial = st.text_input("SerialNumber", key=f"serial{i}")
 
     # =========================
-    # VALIDATION (ONLY REQUIRED FIELDS)
+    # VALIDATION (UNCHANGED)
     # =========================
     if not name:
-        st.error("Name je obavezan")
-        valid = False
-
-    if not type_label:
-        st.error("Type je obavezan")
+        st.error("❌ Name je obavezan")
         valid = False
 
     sp_clean = sp.strip()
 
     if not sp_clean:
-        st.error("SP je obavezan")
+        st.error("❌ SP je obavezan")
         valid = False
     elif len(sp_clean) != 7:
-        st.error("SP mora imati 7 karaktera")
+        st.error("❌ SP mora imati tačno 7 karaktera")
         valid = False
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
-        st.error("SP mora počinjati sa FS ili SP")
+        st.error("❌ SP mora počinjati sa FS ili SP")
         valid = False
 
     # =========================
-    # EXTRA ROW (BELOW)
+    # EXTRA FIELDS (BELOW)
     # =========================
     col4, col5, col6 = st.columns(3)
 
@@ -150,15 +151,14 @@ for i in range(int(count)):
 # =========================
 # EXPORT
 # =========================
-if st.button("Download Excel"):
+if st.button("📥 Download Excel"):
 
     if not valid:
-        st.error("Greške u unosu")
+        st.error("❌ Greške u unosu")
         st.stop()
 
     df = pd.DataFrame(devices)
 
-    # clean type for Excel
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
@@ -166,7 +166,7 @@ if st.button("Download Excel"):
         df.to_excel(writer, index=False, sheet_name="CMDB")
 
     st.download_button(
-        "Preuzmi Excel",
+        "📥 Preuzmi Excel",
         data=output.getvalue(),
         file_name="cmdb_unos.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
