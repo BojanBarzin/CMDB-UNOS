@@ -18,7 +18,7 @@ PROJECTS_MAP = {
     "109 Takko": "109",
     "112 Mercator-S": "112",
     "115 H&M": "115",
-    "118 Metro Cash & Carry": "118",
+    "118 Metre Cash & Carry": "118",
     "119 Ikea": "119",
     "123 Decathlon": "123",
     "193 Lidl": "193"
@@ -27,7 +27,7 @@ PROJECTS_MAP = {
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 
 # =========================
-# LOAD MASTER (DUPLIKATI)
+# LOAD EXISTING DATA (DUPLIKATI)
 # =========================
 @st.cache_data
 def load_main():
@@ -39,6 +39,8 @@ def load_main():
 main_df = load_main()
 
 def exists(value, column):
+    if not value:
+        return False
     if main_df.empty:
         return False
     if column not in main_df.columns:
@@ -46,112 +48,132 @@ def exists(value, column):
     return str(value) in main_df[column].astype(str).values
 
 # =========================
-# STORAGE
+# INPUT
 # =========================
+count = st.number_input("Broj uređaja", 1, 50, 1)
+
 devices = []
 valid = True
 error_msg = ""
 
-# =========================
-# FORM (ENTER SUPPORT)
-# =========================
-with st.form("cmdb_form"):
+for i in range(int(count)):
+    st.markdown("---")
+    st.subheader(f"📦 Uređaj {i+1}")
 
-    count = st.number_input("Broj uređaja", 1, 50, 1)
+    # =========================
+    # OBAVEZNA POLJA
+    # =========================
+    name = st.text_input("Name *", key=f"name{i}")
+    model = st.text_input("Model *", key=f"model{i}")
+    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
 
-    for i in range(int(count)):
-        st.markdown("---")
-        st.subheader(f"📦 Uređaj {i+1}")
+    deployment = st.selectbox(
+        "Deployment State *",
+        DEPLOYMENT_STATES,
+        key=f"dep{i}"
+    )
 
-        # OBAVEZNA
-        name = st.text_input("Name *", key=f"name{i}")
-        model = st.text_input("Model *", key=f"model{i}")
-        sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+    incident = st.selectbox(
+        "Incident State *",
+        INCIDENT_STATES,
+        key=f"inc{i}"
+    )
 
-        deployment = st.selectbox(
-            "Deployment State *",
-            DEPLOYMENT_STATES,
-            key=f"dep{i}"
-        )
+    project_label = st.selectbox(
+        "Project *",
+        PROJECTS_LABELS,
+        key=f"proj{i}"
+    )
 
-        incident = st.selectbox(
-            "Incident State *",
-            INCIDENT_STATES,
-            key=f"inc{i}"
-        )
+    project_value = PROJECTS_MAP[project_label]
 
-        project_label = st.selectbox(
-            "Project *",
-            PROJECTS_LABELS,
-            key=f"proj{i}"
-        )
+    # =========================
+    # OPCIONALNO
+    # =========================
+    vendor = st.text_input("Vendor", key=f"vendor{i}")
+    type_ = st.text_input("Type", key=f"type{i}")
+    serial = st.text_input("SerialNumber", key=f"serial{i}")
+    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
-        project_value = PROJECTS_MAP[project_label]
+    # =========================
+    # VALIDACIJA OBAVEZNIH
+    # =========================
+    if not name or not model or not sp:
+        valid = False
+        error_msg = "❌ Name, Model i SP su obavezni"
 
-        # OPCIONALNO
-        vendor = st.text_input("Vendor", key=f"vendor{i}")
-        type_ = st.text_input("Type", key=f"type{i}")
-        serial = st.text_input("SerialNumber", key=f"serial{i}")
-        inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+    # =========================
+    # SP VALIDACIJA (RULES)
+    # =========================
+    sp_clean = sp.strip()
 
-        # =========================
-        # VALIDACIJA OBAVEZNIH
-        # =========================
-        if not name or not model or not sp:
+    if sp_clean:
+        if len(sp_clean) != 7:
             valid = False
-            error_msg = "❌ Name, Model i SP su obavezni"
+            error_msg = "❌ SP mora imati tačno 7 karaktera"
 
-        # =========================
-        # DUPLIKATI
-        # =========================
-        if sp and exists(sp, "SPInventoryNumber"):
+        elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
             valid = False
-            error_msg = "❌ SP već postoji u CMDB"
+            error_msg = "❌ SP mora počinjati sa FS ili SP"
 
-        if serial and exists(serial, "SerialNumber"):
-            valid = False
-            error_msg = "❌ Serial već postoji u CMDB"
+    # =========================
+    # DUPLIKATI
+    # =========================
+    sp_duplicate = exists(sp_clean, "SPInventoryNumber")
+    serial_duplicate = exists(serial, "SerialNumber")
+    inventory_duplicate = exists(inventory, "InventoryNumber")
 
-        if inventory and exists(inventory, "InventoryNumber"):
-            valid = False
-            error_msg = "❌ Inventory već postoji u CMDB"
+    if sp_duplicate:
+        valid = False
+        error_msg = "❌ SP već postoji u CMDB"
 
-        # =========================
-        # SAVE TEMP DATA
-        # =========================
-        devices.append({
-            "Name": name,
-            "Model": model,
-            "Type": type_,
-            "Vendor": vendor,
-            "SerialNumber": serial,
-            "InventoryNumber": inventory,
-            "SPInventoryNumber": sp,
-            "Deployment State": deployment,
-            "Incident State": incident,
-            "Project": project_value
-        })
+    if serial and serial_duplicate:
+        valid = False
+        error_msg = "❌ Serial već postoji u CMDB"
 
-    submitted = st.form_submit_button("💾 Sačuvaj")
+    if inventory and inventory_duplicate:
+        valid = False
+        error_msg = "❌ Inventory već postoji u CMDB"
+
+    # =========================
+    # VISUAL FEEDBACK
+    # =========================
+    if sp_duplicate:
+        st.error("❌ SP duplikat detektovan")
+
+    # =========================
+    # SAVE
+    # =========================
+    devices.append({
+        "Name": name,
+        "Model": model,
+        "Type": type_,
+        "Vendor": vendor,
+        "SerialNumber": serial,
+        "InventoryNumber": inventory,
+        "SPInventoryNumber": sp,
+        "Deployment State": deployment,
+        "Incident State": incident,
+        "Project": project_value
+    })
 
 # =========================
-# FEEDBACK
+# STATUS
 # =========================
-if submitted:
+if st.button("💾 Validacija"):
 
     if not valid:
         st.error(error_msg)
-        st.stop()
-
-    st.success("✔ Validacija prošla - spremno za download")
+    else:
+        st.success("✔ Sve OK - spremno za download")
 
 # =========================
-# EXPORT (BLOKIRAN AKO NIJE VALIDNO)
+# EXPORT
 # =========================
 if st.button("📥 Download Excel"):
 
     if not valid:
-        st.error("❌ Download blokiran - postoji greška u unosu")
+        st.error("❌ Download blokiran - greška u unosu")
         st.stop()
 
     df = pd.DataFrame(devices)
