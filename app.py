@@ -3,44 +3,44 @@ import pandas as pd
 from io import BytesIO
 
 st.set_page_config(page_title="CMDB Unos", layout="centered")
-
 st.title("📦 CMDB Unos")
 
 # =========================
-# STATIC DATA
+# DROPDOWNS
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
-TYPE_OPTIONS = [
-    "Cash drawer",
-    "Cradle",
-    "IP Phone",
-    "Monitor",
-    "Monitor Touch Screen",
-    "Printer Pos",
-    "Printer label",
-    "Router",
-    "Switch",
-    "Scanner Counter",
-    "Scanner Hand",
-    "Scanner Terminal",
-    "UPS"
-]
+TYPE_OPTIONS = {
+    "💵 Cash drawer": "Cash drawer",
+    "📟 Cradle": "Cradle",
+    "☎️ IP Phone": "IP Phone",
+    "🖥️ Monitor": "Monitor",
+    "🖥️ Monitor Touch Screen": "Monitor Touch Screen",
+    "🧾 Printer Pos": "Printer Pos",
+    "🏷️ Printer label": "Printer label",
+    "📡 Router": "Router",
+    "🔀 Switch": "Switch",
+    "📟 Scanner Counter": "Scanner Counter",
+    "✋ Scanner Hand": "Scanner Hand",
+    "📱 Scanner Terminal": "Scanner Terminal",
+    "🔋 UPS": "UPS"
+}
 
 PROJECTS_MAP = {
     "107 Tendam": "107",
     "108 Deichmann": "108",
-    "109 Takko": "109",
-    "112 Mercator-S": "112",
-    "115 H&M": "115",
-    "118 Metre Cash & Carry": "118",
-    "119 Ikea": "119",
-    "123 Decathlon": "123",
-    "193 Lidl": "193"
+    "109 Takko": "109"
 }
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
+
+# =========================
+# UPS DEPENDENCY
+# =========================
+UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
+
+APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
 # =========================
 # STATE
@@ -55,28 +55,46 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # 1. NAME
+    # TYPE (ICONS UI)
+    # =========================
+    type_label = st.selectbox(
+        "Type *",
+        list(TYPE_OPTIONS.keys()),
+        key=f"type{i}"
+    )
+    type_value = TYPE_OPTIONS[type_label]
+
+    # =========================
+    # NAME
     # =========================
     name = st.text_input("Name *", key=f"name{i}")
-    if not name:
-        st.error("❌ Name je obavezan")
-        valid = False
 
     # =========================
-    # 2. VENDOR
+    # UPS LOGIC
     # =========================
-    vendor = st.text_input("Vendor *", key=f"vendor{i}")
-    if not vendor:
-        st.error("❌ Vendor je obavezan")
-        valid = False
+    vendor = ""
+    model = ""
 
-    # =========================
-    # 3. MODEL
-    # =========================
-    model = st.text_input("Model *", key=f"model{i}")
-    if not model:
-        st.error("❌ Model je obavezan")
-        valid = False
+    if name == "UPS":
+
+        vendor = st.selectbox(
+            "Vendor *",
+            UPS_VENDORS,
+            key=f"vendor{i}"
+        )
+
+        if vendor == "APC":
+            model = st.selectbox(
+                "Model *",
+                APC_MODELS,
+                key=f"model{i}"
+            )
+        else:
+            model = st.text_input("Model *", key=f"model{i}")
+
+    else:
+        vendor = st.text_input("Vendor", key=f"vendor{i}")
+        model = st.text_input("Model", key=f"model{i}")
 
     # =========================
     # SP VALIDATION
@@ -97,38 +115,15 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # TYPE
-    # =========================
-    type_ = st.selectbox(
-        "Type *",
-        TYPE_OPTIONS,
-        key=f"type{i}"
-    )
-
-    # =========================
-    # OPTIONAL FIELDS
+    # OPTIONAL
     # =========================
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
-    deployment = st.selectbox(
-        "Deployment State *",
-        DEPLOYMENT_STATES,
-        key=f"dep{i}"
-    )
+    deployment = st.selectbox("Deployment State *", DEPLOYMENT_STATES, key=f"dep{i}")
+    incident = st.selectbox("Incident State *", INCIDENT_STATES, key=f"inc{i}")
 
-    incident = st.selectbox(
-        "Incident State *",
-        INCIDENT_STATES,
-        key=f"inc{i}"
-    )
-
-    project_label = st.selectbox(
-        "Project *",
-        PROJECTS_LABELS,
-        key=f"proj{i}"
-    )
-
+    project_label = st.selectbox("Project *", PROJECTS_LABELS, key=f"proj{i}")
     project_value = PROJECTS_MAP[project_label]
 
     # =========================
@@ -136,9 +131,9 @@ for i in range(int(count)):
     # =========================
     devices.append({
         "Name": name,
+        "Type": type_value,
         "Vendor": vendor,
         "Model": model,
-        "Type": type_,
         "SerialNumber": serial,
         "InventoryNumber": inventory,
         "SPInventoryNumber": sp_clean,
@@ -153,7 +148,7 @@ for i in range(int(count)):
 if st.button("📥 Download Excel"):
 
     if not valid:
-        st.error("❌ Ne može download - postoje greške u unosu")
+        st.error("❌ Greške u unosu")
         st.stop()
 
     df = pd.DataFrame(devices)
