@@ -6,19 +6,6 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# LOAD EXISTING DATA (FAST)
-# =========================
-try:
-    existing_df = pd.read_excel("data.xlsx")
-
-    sp_existing = set(existing_df.get("SPInventoryNumber", []).astype(str))
-    inv_existing = set(existing_df.get("InventoryNumber", []).astype(str))
-    serial_existing = set(existing_df.get("SerialNumber", []).astype(str))
-
-except:
-    sp_existing, inv_existing, serial_existing = set(), set(), set()
-
-# =========================
 # DATA
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
@@ -43,16 +30,8 @@ PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
-# =========================
-# STATE
-# =========================
 devices = []
 valid = True
-
-# 🔥 session duplikati (brzo)
-sp_set = set()
-inv_set = set()
-serial_set = set()
 
 count = st.number_input("Broj uređaja", 1, 50, 1)
 
@@ -62,7 +41,6 @@ for i in range(int(count)):
 
     name = st.text_input("Name *", key=f"name{i}")
     if not name:
-        st.error("❌ Name je obavezan")
         valid = False
 
     if name == "UPS":
@@ -76,55 +54,17 @@ for i in range(int(count)):
         model = st.text_input("Model", key=f"model{i}")
 
     type_label = st.selectbox("Type *", [""] + TYPE_OPTIONS, key=f"type{i}")
-
     if not type_label:
-        st.error("❌ Type je obavezan")
         valid = False
 
-    # =========================
-    # SP (DUPE CHECK FAST)
-    # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
 
-    if not sp_clean:
-        st.error("❌ SP je obavezan")
-        valid = False
-    elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati tačno 7 karaktera")
-        valid = False
-    elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
-        st.error("❌ SP mora počinjati sa FS ili SP")
-        valid = False
-    elif sp_clean in sp_existing or sp_clean in sp_set:
-        st.error("❌ SP već postoji")
+    if not sp_clean or len(sp_clean) != 7 or not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
         valid = False
 
-    sp_set.add(sp_clean)
-
-    # =========================
-    # INVENTORY
-    # =========================
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-
-    if inventory:
-        if inventory in inv_existing or inventory in inv_set:
-            st.error("❌ Inventory već postoji")
-            valid = False
-
-    inv_set.add(inventory)
-
-    # =========================
-    # SERIAL
-    # =========================
     serial = st.text_input("SerialNumber", key=f"serial{i}")
-
-    if serial:
-        if serial in serial_existing or serial in serial_set:
-            st.error("❌ Serial već postoji")
-            valid = False
-
-    serial_set.add(serial)
 
     deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
     incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
@@ -146,16 +86,41 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT
+# EXPORT + DUP CHECK
 # =========================
 if st.button("📥 Download Excel"):
 
     if not valid:
-        st.error("❌ Greške u unosu")
+        st.error("❌ Popuni obavezna polja")
         st.stop()
 
     df = pd.DataFrame(devices)
 
+    # =========================
+    # LOAD EXISTING (SAMO OVDE)
+    # =========================
+    try:
+        existing_df = pd.read_excel("data.xlsx")
+    except:
+        existing_df = pd.DataFrame()
+
+    # =========================
+    # DUP CHECK (BRZO I JEDNOM)
+    # =========================
+    for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
+        if col in existing_df.columns:
+            duplicates = df[df[col].isin(existing_df[col])]
+            if not duplicates.empty:
+                st.error(f"❌ Već postoji {col}")
+                st.stop()
+
+    # duplikati u samom unosu
+    for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
+        if df[col].duplicated().any():
+            st.error(f"❌ Duplikati u unetim podacima: {col}")
+            st.stop()
+
+    # clean type
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
