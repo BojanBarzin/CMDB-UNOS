@@ -27,7 +27,7 @@ PROJECTS_MAP = {
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 
 # =========================
-# LOAD EXISTING DATA (DUPLIKATI)
+# LOAD EXISTING DATA
 # =========================
 @st.cache_data
 def load_main():
@@ -48,25 +48,83 @@ def exists(value, column):
     return str(value) in main_df[column].astype(str).values
 
 # =========================
+# STATE
+# =========================
+devices = []
+valid = True
+
+# =========================
 # INPUT
 # =========================
 count = st.number_input("Broj uređaja", 1, 50, 1)
-
-devices = []
-valid = True
-error_msg = ""
 
 for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # OBAVEZNA POLJA
+    # NAME
     # =========================
     name = st.text_input("Name *", key=f"name{i}")
-    model = st.text_input("Model *", key=f"model{i}")
-    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+    if not name:
+        st.error("❌ Name je obavezan")
+        valid = False
 
+    # =========================
+    # MODEL
+    # =========================
+    model = st.text_input("Model *", key=f"model{i}")
+    if not model:
+        st.error("❌ Model je obavezan")
+        valid = False
+
+    # =========================
+    # SP VALIDACIJA
+    # =========================
+    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+    sp_clean = sp.strip()
+
+    if not sp_clean:
+        st.error("❌ SP je obavezan")
+        valid = False
+
+    elif len(sp_clean) != 7:
+        st.error("❌ SP mora imati tačno 7 karaktera")
+        valid = False
+
+    elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
+        st.error("❌ SP mora počinjati sa FS ili SP")
+        valid = False
+
+    elif exists(sp_clean, "SPInventoryNumber"):
+        st.error("❌ SP već postoji u CMDB")
+        valid = False
+
+    # =========================
+    # SERIAL VALIDACIJA
+    # =========================
+    serial = st.text_input("SerialNumber", key=f"serial{i}")
+    serial_clean = serial.strip()
+
+    if serial_clean:
+        if exists(serial_clean, "SerialNumber"):
+            st.error("❌ Serial već postoji u CMDB")
+            valid = False
+
+    # =========================
+    # INVENTORY VALIDACIJA
+    # =========================
+    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+    inventory_clean = inventory.strip()
+
+    if inventory_clean:
+        if exists(inventory_clean, "InventoryNumber"):
+            st.error("❌ Inventory već postoji u CMDB")
+            valid = False
+
+    # =========================
+    # DROPDOWNS
+    # =========================
     deployment = st.selectbox(
         "Deployment State *",
         DEPLOYMENT_STATES,
@@ -88,58 +146,10 @@ for i in range(int(count)):
     project_value = PROJECTS_MAP[project_label]
 
     # =========================
-    # OPCIONALNO
+    # OPTIONAL
     # =========================
     vendor = st.text_input("Vendor", key=f"vendor{i}")
     type_ = st.text_input("Type", key=f"type{i}")
-    serial = st.text_input("SerialNumber", key=f"serial{i}")
-    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-
-    # =========================
-    # VALIDACIJA OBAVEZNIH
-    # =========================
-    if not name or not model or not sp:
-        valid = False
-        error_msg = "❌ Name, Model i SP su obavezni"
-
-    # =========================
-    # SP VALIDACIJA (RULES)
-    # =========================
-    sp_clean = sp.strip()
-
-    if sp_clean:
-        if len(sp_clean) != 7:
-            valid = False
-            error_msg = "❌ SP mora imati tačno 7 karaktera"
-
-        elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
-            valid = False
-            error_msg = "❌ SP mora počinjati sa FS ili SP"
-
-    # =========================
-    # DUPLIKATI
-    # =========================
-    sp_duplicate = exists(sp_clean, "SPInventoryNumber")
-    serial_duplicate = exists(serial, "SerialNumber")
-    inventory_duplicate = exists(inventory, "InventoryNumber")
-
-    if sp_duplicate:
-        valid = False
-        error_msg = "❌ SP već postoji u CMDB"
-
-    if serial and serial_duplicate:
-        valid = False
-        error_msg = "❌ Serial već postoji u CMDB"
-
-    if inventory and inventory_duplicate:
-        valid = False
-        error_msg = "❌ Inventory već postoji u CMDB"
-
-    # =========================
-    # VISUAL FEEDBACK
-    # =========================
-    if sp_duplicate:
-        st.error("❌ SP duplikat detektovan")
 
     # =========================
     # SAVE
@@ -149,31 +159,21 @@ for i in range(int(count)):
         "Model": model,
         "Type": type_,
         "Vendor": vendor,
-        "SerialNumber": serial,
-        "InventoryNumber": inventory,
-        "SPInventoryNumber": sp,
+        "SerialNumber": serial_clean,
+        "InventoryNumber": inventory_clean,
+        "SPInventoryNumber": sp_clean,
         "Deployment State": deployment,
         "Incident State": incident,
         "Project": project_value
     })
 
 # =========================
-# STATUS
-# =========================
-if st.button("💾 Validacija"):
-
-    if not valid:
-        st.error(error_msg)
-    else:
-        st.success("✔ Sve OK - spremno za download")
-
-# =========================
-# EXPORT
+# EXPORT (BLOCK IF INVALID)
 # =========================
 if st.button("📥 Download Excel"):
 
     if not valid:
-        st.error("❌ Download blokiran - greška u unosu")
+        st.error("❌ Ne može download - postoje greške u unosu")
         st.stop()
 
     df = pd.DataFrame(devices)
