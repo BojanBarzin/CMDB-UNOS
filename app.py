@@ -6,10 +6,38 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# CONSTANTS
+# DATA
 # =========================
-UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
+DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
+INCIDENT_STATES = ["Operational", "Incident"]
 
+TYPE_OPTIONS = [
+    "Cash drawer",
+    "Cradle",
+    "IP Phone",
+    "Monitor",
+    "Monitor Touch Screen",
+    "Printer Pos",
+    "Printer label",
+    "Router",
+    "Switch",
+    "Scanner Counter",
+    "Scanner Hand",
+    "Scanner Terminal",
+    "UPS"
+]
+
+PROJECTS_MAP = {
+    "107 Tendam": "107",
+    "108 Deichmann": "108",
+    "109 Takko": "109",
+    "112 Mercator-S": "112",
+    "115 H&M": "115"
+}
+
+PROJECTS_LABELS = list(PROJECTS_MAP.keys())
+
+UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
 # =========================
@@ -25,12 +53,12 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # 1. NAME (obavezno)
+    # NAME (obavezno)
     # =========================
     name = st.text_input("Name *", key=f"name{i}")
 
     # =========================
-    # 2. VENDOR (uvek postoji)
+    # VENDOR (conditional)
     # =========================
     if name == "UPS":
         vendor = st.selectbox(
@@ -42,7 +70,7 @@ for i in range(int(count)):
         vendor = st.text_input("Vendor", key=f"vendor{i}")
 
     # =========================
-    # 3. MODEL (uvek postoji)
+    # MODEL (conditional + OBAVEZNO)
     # =========================
     if vendor == "APC":
         model = st.selectbox(
@@ -53,8 +81,12 @@ for i in range(int(count)):
     else:
         model = st.text_input("Model *", key=f"model{i}")
 
+    if not model:
+        st.error("❌ Model je obavezan")
+        valid = False
+
     # =========================
-    # 4. SP (obavezno)
+    # SP (obavezno)
     # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
@@ -62,18 +94,24 @@ for i in range(int(count)):
     if not sp_clean:
         st.error("❌ SP je obavezan")
         valid = False
-
     elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati tačno 7 karaktera")
+        st.error("❌ SP mora imati 7 karaktera")
         valid = False
-
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
         st.error("❌ SP mora počinjati sa FS ili SP")
         valid = False
 
     # =========================
-    # OPTIONAL
+    # OPTIONAL FIELDS (VRACENO SVE)
     # =========================
+    type_label = st.selectbox("Type", TYPE_OPTIONS, key=f"type{i}")
+
+    deployment = st.selectbox("Deployment State", DEPLOYMENT_STATES, key=f"dep{i}")
+    incident = st.selectbox("Incident State", INCIDENT_STATES, key=f"inc{i}")
+
+    project_label = st.selectbox("Project", PROJECTS_LABELS, key=f"proj{i}")
+    project_value = PROJECTS_MAP[project_label]
+
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
@@ -84,9 +122,13 @@ for i in range(int(count)):
         "Name": name,
         "Vendor": vendor,
         "Model": model,
-        "SPInventoryNumber": sp_clean,
+        "Type": type_label,
+        "Deployment State": deployment,
+        "Incident State": incident,
+        "Project": project_value,
         "SerialNumber": serial,
-        "InventoryNumber": inventory
+        "InventoryNumber": inventory,
+        "SPInventoryNumber": sp_clean
     })
 
 # =========================
