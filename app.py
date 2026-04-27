@@ -6,33 +6,46 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# DATA
+# DROPDOWNS
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
-TYPE_OPTIONS = {
-    "💵 Cash drawer": "Cash drawer",
-    "📟 Cradle": "Cradle",
-    "☎️ IP Phone": "IP Phone",
-    "🖥️ Monitor": "Monitor",
-    "🖥️ Monitor Touch Screen": "Monitor Touch Screen",
-    "🧾 Printer Pos": "Printer Pos",
-    "🏷️ Printer label": "Printer label",
-    "📡 Router": "Router",
-    "🔀 Switch": "Switch",
-    "📟 Scanner Counter": "Scanner Counter",
-    "✋ Scanner Hand": "Scanner Hand",
-    "📱 Scanner Terminal": "Scanner Terminal",
-    "🔋 UPS": "UPS"
-}
+TYPE_OPTIONS = [
+    "",
+    "💻 Desktop",
+    "💻 Laptop",
+    "💵 Cash drawer",
+    "📟 Cradle",
+    "☎️ IP Phone",
+    "🖥️ Monitor",
+    "🖥️ Monitor Touch Screen",
+    "🧾 Printer Pos",
+    "🏷️ Printer label",
+    "📡 Router",
+    "🔀 Switch",
+    "📟 Scanner Counter",
+    "✋ Scanner Hand",
+    "📱 Scanner Terminal",
+    "🔋 UPS",
+    "🖧 Server",
+    "🖥️ POS Beetle",
+    "🖥️ POS Custom",
+    "🖥️ POS ELO All in One",
+    "🖥️ POS NCR",
+    "📦 Other"
+]
 
 PROJECTS_MAP = {
     "107 Tendam": "107",
     "108 Deichmann": "108",
     "109 Takko": "109",
     "112 Mercator-S": "112",
-    "115 H&M": "115"
+    "115 H&M": "115",
+    "118 Metre Cash & Carry": "118",
+    "119 Ikea": "119",
+    "123 Decathlon": "123",
+    "193 Lidl": "193"
 }
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
@@ -53,12 +66,15 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # 1. NAME
+    # 1. NAME (OBAVEZNO)
     # =========================
-    name = st.text_input("Name", key=f"name{i}")
+    name = st.text_input("Name *", key=f"name{i}")
+    if not name:
+        st.error("❌ Name je obavezan")
+        valid = False
 
     # =========================
-    # 2. VENDOR (UPS only)
+    # 2. VENDOR (UPS conditional)
     # =========================
     if name == "UPS":
         vendor = st.selectbox(
@@ -70,26 +86,29 @@ for i in range(int(count)):
         vendor = st.text_input("Vendor", key=f"vendor{i}")
 
     # =========================
-    # 3. MODEL (optional)
+    # 3. MODEL (APC conditional)
     # =========================
     if vendor == "APC":
         model = st.selectbox(
-            "Model",
+            "Model *",
             APC_MODELS,
             key=f"model{i}"
         )
     else:
-        model = st.text_input("Model", key=f"model{i}")
+        model = st.text_input("Model *", key=f"model{i}")
+
+    if not model:
+        st.error("❌ Model je obavezan")
+        valid = False
 
     # =========================
-    # 4. TYPE (ICONS)
+    # 4. TYPE (ICONS + BLANK)
     # =========================
     type_label = st.selectbox(
         "Type",
-        list(TYPE_OPTIONS.keys()),
+        TYPE_OPTIONS,
         key=f"type{i}"
     )
-    type_value = TYPE_OPTIONS[type_label]
 
     # =========================
     # 5. SP (OBAVEZNO)
@@ -143,6 +162,7 @@ for i in range(int(count)):
         PROJECTS_LABELS,
         key=f"proj{i}"
     )
+
     project_value = PROJECTS_MAP[project_label]
 
     # =========================
@@ -152,7 +172,7 @@ for i in range(int(count)):
         "Name": name,
         "Vendor": vendor,
         "Model": model,
-        "Type": type_value,
+        "Type": type_label,
         "SPInventoryNumber": sp_clean,
         "InventoryNumber": inventory,
         "SerialNumber": serial,
