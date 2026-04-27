@@ -6,12 +6,6 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# SESSION STATE
-# =========================
-if "focus_device" not in st.session_state:
-    st.session_state.focus_device = None
-
-# =========================
 # DATA
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
@@ -41,83 +35,64 @@ APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 # =========================
 devices = []
 valid = True
-errors = {}
 
 count = st.number_input("Broj uređaja", 1, 50, 1)
 
-# =========================
-# INPUT
-# =========================
 for i in range(int(count)):
 
-    is_focused = (st.session_state.focus_device == i)
+    st.markdown("---")
+    st.subheader(f"📦 Uređaj {i+1}")
 
-    with st.container():
-        if is_focused:
-            st.markdown(
-                f"""
-                <div style="
-                    padding:10px;
-                    border:2px solid red;
-                    border-radius:10px;
-                    background:#fff5f5;">
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+    name = st.text_input("Name *", key=f"name{i}")
+    if not name:
+        valid = False
 
-        st.subheader(f"📦 Uređaj {i+1}")
+    vendor = st.selectbox(
+        "Vendor",
+        [""] + UPS_VENDORS if name == "UPS" else [""],
+        key=f"vendor{i}"
+    ) if name == "UPS" else st.text_input("Vendor", key=f"vendor{i}")
 
-        name = st.text_input("Name *", key=f"name{i}")
-        if not name:
-            valid = False
+    model = st.selectbox(
+        "Model",
+        [""] + APC_MODELS,
+        key=f"model{i}"
+    ) if vendor == "APC" else st.text_input("Model", key=f"model{i}")
 
-        vendor = st.selectbox(
-            "Vendor",
-            [""] + UPS_VENDORS if name == "UPS" else [""],
-            key=f"vendor{i}"
-        ) if name == "UPS" else st.text_input("Vendor", key=f"vendor{i}")
+    type_label = st.selectbox("Type *", [""] + TYPE_OPTIONS, key=f"type{i}")
+    if not type_label:
+        valid = False
 
-        model = st.selectbox(
-            "Model",
-            [""] + APC_MODELS,
-            key=f"model{i}"
-        ) if vendor == "APC" else st.text_input("Model", key=f"model{i}")
+    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+    sp_clean = sp.strip()
 
-        type_label = st.selectbox("Type *", [""] + TYPE_OPTIONS, key=f"type{i}")
-        if not type_label:
-            valid = False
+    if not sp_clean or len(sp_clean) != 7 or not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
+        valid = False
 
-        sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
-        sp_clean = sp.strip()
+    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+    serial = st.text_input("SerialNumber", key=f"serial{i}")
 
-        if not sp_clean or len(sp_clean) != 7 or not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
-            valid = False
+    deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
+    incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
 
-        inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-        serial = st.text_input("SerialNumber", key=f"serial{i}")
+    project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
+    project_value = PROJECTS_MAP.get(project_label, "")
 
-        deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
-        incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
-
-        project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
-        project_value = PROJECTS_MAP.get(project_label, "")
-
-        devices.append({
-            "Name": name,
-            "Vendor": vendor,
-            "Model": model,
-            "Type": type_label,
-            "SPInventoryNumber": sp_clean,
-            "InventoryNumber": inventory,
-            "SerialNumber": serial,
-            "Deployment State": deployment,
-            "Incident State": incident,
-            "Project": project_value
-        })
+    devices.append({
+        "Name": name,
+        "Vendor": vendor,
+        "Model": model,
+        "Type": type_label,
+        "SPInventoryNumber": sp_clean,
+        "InventoryNumber": inventory,
+        "SerialNumber": serial,
+        "Deployment State": deployment,
+        "Incident State": incident,
+        "Project": project_value
+    })
 
 # =========================
-# VALIDATION + DUP CHECK
+# VALIDATION
 # =========================
 if st.button("📥 Download Excel"):
 
@@ -143,26 +118,23 @@ if st.button("📥 Download Excel"):
                 if val and val in existing_values:
                     errors.setdefault(idx, []).append(f"{col} već postoji ({val})")
 
-    # INPUT DUPLICATES
+    # DUPLICATES IN INPUT
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         dup = df[col].duplicated(keep=False)
+
         for idx in df[dup].index:
             val = df.loc[idx, col]
             if val:
                 errors.setdefault(idx, []).append(f"Duplikat ({col}: {val})")
 
     # =========================
-    # ERROR HANDLING (STABLE UX)
+    # ERROR OUTPUT (SIMPLE + FAST)
     # =========================
     if errors:
-        st.error("❌ Pronađeni duplikati:")
+        st.error("❌ Pronađene greške u unosu:")
 
         for idx, msgs in errors.items():
-            col_text = " | ".join(set(msgs))
-
-            if st.button(f"➡ Uređaj {idx+1}: {col_text}", key=f"err_{idx}"):
-                st.session_state.focus_device = idx
-                st.rerun()
+            st.warning(f"➡ Uređaj {idx+1}: " + " | ".join(set(msgs)))
 
         st.stop()
 
