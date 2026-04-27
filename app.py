@@ -6,13 +6,12 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# DROPDOWNS
+# DATA
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
 TYPE_OPTIONS = [
-    "",
     "💻 Desktop",
     "💻 Laptop",
     "💵 Cash drawer",
@@ -74,44 +73,36 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # 2. VENDOR (UPS conditional)
+    # VENDOR (OPTIONAL)
     # =========================
     if name == "UPS":
-        vendor = st.selectbox(
-            "Vendor",
-            UPS_VENDORS,
-            key=f"vendor{i}"
-        )
+        vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
     else:
         vendor = st.text_input("Vendor", key=f"vendor{i}")
 
     # =========================
-    # 3. MODEL (APC conditional)
+    # MODEL (OPTIONAL)
     # =========================
     if vendor == "APC":
-        model = st.selectbox(
-            "Model *",
-            APC_MODELS,
-            key=f"model{i}"
-        )
+        model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
     else:
-        model = st.text_input("Model *", key=f"model{i}")
-
-    if not model:
-        st.error("❌ Model je obavezan")
-        valid = False
+        model = st.text_input("Model", key=f"model{i}")
 
     # =========================
-    # 4. TYPE (ICONS + BLANK)
+    # 2. TYPE (OBAVEZNO)
     # =========================
     type_label = st.selectbox(
-        "Type",
-        TYPE_OPTIONS,
+        "Type *",
+        [""] + TYPE_OPTIONS,
         key=f"type{i}"
     )
 
+    if not type_label:
+        st.error("❌ Type je obavezan")
+        valid = False
+
     # =========================
-    # 5. SP (OBAVEZNO)
+    # 3. SP (OBAVEZNO)
     # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
@@ -127,43 +118,16 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # 6. INVENTORY
+    # OPTIONAL FIELDS
     # =========================
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-
-    # =========================
-    # 7. SERIAL
-    # =========================
     serial = st.text_input("SerialNumber", key=f"serial{i}")
 
-    # =========================
-    # 8. DEPLOYMENT
-    # =========================
-    deployment = st.selectbox(
-        "Deployment State",
-        DEPLOYMENT_STATES,
-        key=f"dep{i}"
-    )
+    deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
+    incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
 
-    # =========================
-    # 9. INCIDENT
-    # =========================
-    incident = st.selectbox(
-        "Incident State",
-        INCIDENT_STATES,
-        key=f"inc{i}"
-    )
-
-    # =========================
-    # 10. PROJECT
-    # =========================
-    project_label = st.selectbox(
-        "Project",
-        PROJECTS_LABELS,
-        key=f"proj{i}"
-    )
-
-    project_value = PROJECTS_MAP[project_label]
+    project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
+    project_value = PROJECTS_MAP.get(project_label, "")
 
     # =========================
     # SAVE
