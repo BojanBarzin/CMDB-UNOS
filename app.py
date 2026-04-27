@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from PIL import Image
-from pyzbar.pyzbar import decode
 
-st.set_page_config(page_title="CMDB Batch + Scan + Validation", layout="centered")
+st.set_page_config(page_title="CMDB Batch + Safe Scan", layout="centered")
 
-st.title("📦 CMDB Batch Unos + Scan + Duplikat Check")
+st.title("📦 CMDB Batch Unos (Cloud Safe)")
 
 # =========================
-# LOAD CMDB EXCEL
+# LOAD EXCEL
 # =========================
 @st.cache_data
 def load_main():
@@ -21,7 +20,7 @@ def load_main():
 main_df = load_main()
 
 # =========================
-# DUPLIKAT FUNKCIJA
+# DUPLIKAT CHECK
 # =========================
 def check_duplicate(value, column):
     if main_df.empty:
@@ -31,21 +30,23 @@ def check_duplicate(value, column):
     return str(value) in main_df[column].astype(str).values
 
 # =========================
-# CAMERA SCAN (CLOUD SAFE)
+# CAMERA (SAFE VERSION)
 # =========================
-st.subheader("📷 Scan QR / Barcode")
+st.subheader("📷 Kamera (QR / Barcode)")
 
-img = st.camera_input("Skeniraj kod")
+img = st.camera_input("Slikaj kod")
 
-scanned_value = None
+scanned_value = ""
 
 if img is not None:
     image = Image.open(img)
-    result = decode(image)
+    st.success("📸 Slika uspešno učitana")
 
-    for r in result:
-        scanned_value = r.data.decode("utf-8")
-        st.success(f"📌 Skenirano: {scanned_value}")
+    # Cloud-safe fallback (nema decode biblioteka)
+    scanned_value = st.text_input(
+        "📌 Unesi skenirani kod (ako nije automatski):",
+        value=""
+    )
 
 # =========================
 # AUTOCOMPLETE NAME
@@ -96,44 +97,51 @@ for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
-    # NAME
     name = st.text_input("Name", value=autofill.get("Name", ""), key=f"name{i}")
     model = st.text_input("Model", value=autofill.get("Model", ""), key=f"model{i}")
     type_ = st.text_input("Type", value=autofill.get("Type", ""), key=f"type{i}")
     vendor = st.text_input("Vendor", value=autofill.get("Vendor", ""), key=f"vendor{i}")
 
+    # =========================
     # SERIAL + CHECK
+    # =========================
     serial = st.text_input(
         "SerialNumber",
-        value=scanned_value if scanned_value else "",
+        value=scanned_value,
         key=f"serial{i}"
     )
 
     if serial:
         if check_duplicate(serial, "SerialNumber"):
-            st.error("❌ Serial već postoji u CMDB")
+            st.error("❌ Serial već postoji")
         else:
             st.success("✔ Serial OK")
 
+    # =========================
     # INVENTORY + CHECK
+    # =========================
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
     if inventory:
         if check_duplicate(inventory, "InventoryNumber"):
-            st.error("❌ Inventory već postoji u CMDB")
+            st.error("❌ Inventory već postoji")
         else:
             st.success("✔ Inventory OK")
 
+    # =========================
     # SP + CHECK
+    # =========================
     sp = st.text_input("SPInventoryNumber", key=f"sp{i}")
 
     if sp:
         if check_duplicate(sp, "SPInventoryNumber"):
-            st.error("❌ SP već postoji u CMDB")
+            st.error("❌ SP već postoji")
         else:
             st.success("✔ SP OK")
 
-    # SKIP EMPTY ROWS
+    # =========================
+    # SAVE ROW
+    # =========================
     if name or inventory:
         devices.append({
             "Name": name,
@@ -148,23 +156,23 @@ for i in range(int(count)):
 # =========================
 # EXPORT EXCEL
 # =========================
-if st.button("💾 Sačuvaj i preuzmi Excel"):
+if st.button("💾 Preuzmi Excel"):
 
     df = pd.DataFrame(devices)
 
     if df.empty:
-        st.error("❌ Nema unetih uređaja!")
+        st.error("❌ Nema unetih uređaja")
     else:
         output = BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="CMDB")
 
-        st.success(f"✅ Sačuvano uređaja: {len(df)}")
+        st.success(f"✅ Uređaja: {len(df)}")
 
         st.download_button(
-            "📥 Preuzmi Excel",
+            "📥 Download Excel",
             data=output.getvalue(),
-            file_name="cmdb_batch_final.xlsx",
+            file_name="cmdb_safe.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
