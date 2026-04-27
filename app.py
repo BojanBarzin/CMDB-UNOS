@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-st.set_page_config(page_title="CMDB Batch Unos", layout="centered")
+st.set_page_config(page_title="CMDB Unos", layout="centered")
 
-st.title("📦 CMDB Batch Unos")
+st.title("📦 CMDB Unos")
 
 # =========================
 # LOAD MASTER EXCEL
@@ -29,80 +29,80 @@ def exists(value, column):
     return str(value) in main_df[column].astype(str).values
 
 # =========================
-# BATCH INPUT
+# BROJ UREĐAJA
 # =========================
 count = st.number_input("Broj uređaja", min_value=1, max_value=50, value=1)
 
 devices = []
 
+# =========================
+# INPUT LOOP
+# =========================
 for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
-    name = st.text_input("Name", key=f"name{i}")
-    model = st.text_input("Model", key=f"model{i}")
+    # OBAVEZNA POLJA
+    name = st.text_input("Name *", key=f"name{i}")
+    model = st.text_input("Model *", key=f"model{i}")
+    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+
+    # OPCIONALNA POLJA
     type_ = st.text_input("Type", key=f"type{i}")
     vendor = st.text_input("Vendor", key=f"vendor{i}")
-
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-    sp = st.text_input("SPInventoryNumber", key=f"sp{i}")
 
     # =========================
-    # LIVE VALIDATION
+    # VALIDACIJA OBAVEZNIH
     # =========================
-    if serial:
-        if exists(serial, "SerialNumber"):
-            st.error("❌ Serial već postoji")
-        else:
-            st.success("✔ Serial OK")
+    if name and model and sp:
 
-    if inventory:
-        if exists(inventory, "InventoryNumber"):
-            st.error("❌ Inventory već postoji")
-        else:
-            st.success("✔ Inventory OK")
-
-    if sp:
+        # duplikat check (SP najbitniji)
         if exists(sp, "SPInventoryNumber"):
-            st.error("❌ SP već postoji")
-        else:
-            st.success("✔ SP OK")
+            st.error("❌ SP već postoji u CMDB")
 
-    # =========================
-    # SAVE ROW
-    # =========================
-    if name or inventory:
+        if serial and exists(serial, "SerialNumber"):
+            st.error("❌ Serial već postoji u CMDB")
+
+        if inventory and exists(inventory, "InventoryNumber"):
+            st.error("❌ Inventory već postoji u CMDB")
+
+        st.success("✔ Uređaj OK")
+
         devices.append({
-            "Name": name,
-            "Model": model,
-            "Type": type_,
-            "Vendor": vendor,
-            "SerialNumber": serial,
-            "InventoryNumber": inventory,
-            "SPInventoryNumber": sp
+            "Name": name.strip(),
+            "Model": model.strip(),
+            "Type": type_.strip() if type_ else "",
+            "Vendor": vendor.strip() if vendor else "",
+            "SerialNumber": serial.strip() if serial else "",
+            "InventoryNumber": inventory.strip() if inventory else "",
+            "SPInventoryNumber": sp.strip()
         })
 
+    else:
+        st.warning("⚠ Name, Model i SP su obavezni")
+
 # =========================
-# EXPORT
+# EXPORT EXCEL
 # =========================
-if st.button("💾 Generiši Excel"):
+if st.button("💾 Preuzmi Excel"):
 
     df = pd.DataFrame(devices)
 
     if df.empty:
-        st.error("❌ Nema unetih uređaja")
+        st.error("❌ Nema validnih uređaja za export")
     else:
         output = BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="CMDB")
 
-        st.success(f"✅ Uređaja uneto: {len(df)}")
+        st.success(f"✅ Export: {len(df)} uređaja")
 
         st.download_button(
-            "📥 Preuzmi Excel",
+            "📥 Download Excel",
             data=output.getvalue(),
-            file_name="cmdb_batch.xlsx",
+            file_name="cmdb_unos.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
