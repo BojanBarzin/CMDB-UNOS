@@ -7,41 +7,15 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("CMDB Unos")
 
 # =========================
-# CLEAN UI (neutral styling)
+# LOAD EXISTING DATA (LOCAL FILE)
 # =========================
-st.markdown(
-    """
-    <style>
-    .block-container {
-        padding-top: 2rem;
-        max-width: 1100px;
-    }
-
-    h1 {
-        font-weight: 600;
-        font-size: 28px;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# =========================
-# LOAD EXISTING CMDB (DUP CHECK)
-# =========================
-existing_file = st.file_uploader(
-    "Učitaj postojeći CMDB Excel (za proveru duplikata)",
-    type=["xlsx"]
-)
-
-existing_df = None
-
-if existing_file:
-    existing_df = pd.read_excel(existing_file)
+try:
+    existing_df = pd.read_excel("data.xlsx")
+except:
+    existing_df = pd.DataFrame()
 
 def is_duplicate(column, value):
-    if existing_df is None or value == "":
+    if existing_df is None or existing_df.empty:
         return False
     if column not in existing_df.columns:
         return False
@@ -124,10 +98,10 @@ for i in range(int(count)):
     else:
         model = st.text_input("Model", key=f"model{i}")
 
-    # TYPE
+    # TYPE (BLANK FIRST)
     type_label = st.selectbox(
         "Type *",
-        TYPE_OPTIONS,
+        [""] + TYPE_OPTIONS,
         key=f"type{i}"
     )
 
@@ -184,7 +158,7 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT
+# EXPORT (CLEAN TYPE)
 # =========================
 if st.button("Download Excel"):
 
@@ -194,7 +168,7 @@ if st.button("Download Excel"):
 
     df = pd.DataFrame(devices)
 
-    # clean type for Excel
+    # remove icons for Excel
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
