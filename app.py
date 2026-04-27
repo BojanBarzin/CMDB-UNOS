@@ -6,6 +6,12 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
+# SESSION STATE (DRAFT SAVE)
+# =========================
+if "devices" not in st.session_state:
+    st.session_state.devices = []
+
+# =========================
 # DATA
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
@@ -30,31 +36,35 @@ PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
-# =========================
-# STATE
-# =========================
 devices = []
 valid = True
 
 count = st.number_input("Broj uređaja", 1, 50, 1)
 
+# =========================
+# INPUT
+# =========================
 for i in range(int(count)):
-    st.markdown("---")
+    st.markdown(f"""
+    <div id="device_{i}" style="
+        padding:10px;
+        border-radius:10px;
+        background:#f8f9fa;
+        margin-bottom:10px;">
+    </div>
+    """, unsafe_allow_html=True)
+
     st.subheader(f"📦 Uređaj {i+1}")
 
     name = st.text_input("Name *", key=f"name{i}")
     if not name:
         valid = False
 
-    if name == "UPS":
-        vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
-    else:
-        vendor = st.text_input("Vendor", key=f"vendor{i}")
+    vendor = st.selectbox("Vendor", [""] + UPS_VENDORS if name == "UPS" else [""] , key=f"vendor{i}") \
+        if name == "UPS" else st.text_input("Vendor", key=f"vendor{i}")
 
-    if vendor == "APC":
-        model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
-    else:
-        model = st.text_input("Model", key=f"model{i}")
+    model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}") \
+        if vendor == "APC" else st.text_input("Model", key=f"model{i}")
 
     type_label = st.selectbox("Type *", [""] + TYPE_OPTIONS, key=f"type{i}")
     if not type_label:
@@ -104,17 +114,18 @@ if st.button("📥 Download Excel"):
     except:
         existing_df = pd.DataFrame()
 
-    errors = []
-    error_indexes = []
+    errors = {}
+    error_devices = set()
 
-    # EXISTING CHECK
+    # CHECK EXISTING
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         if col in existing_df.columns:
             existing_values = set(existing_df[col].astype(str))
+
             for idx, val in enumerate(df[col]):
                 if val and val in existing_values:
-                    errors.append(f"❌ Uređaj {idx+1}: {col} već postoji ({val})")
-                    error_indexes.append(idx)
+                    errors.setdefault(idx, []).append(f"{col} već postoji ({val})")
+                    error_devices.add(idx)
 
     # DUP IN INPUT
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
@@ -122,32 +133,38 @@ if st.button("📥 Download Excel"):
         for idx in df[dup_mask].index:
             val = df.loc[idx, col]
             if val:
-                errors.append(f"❌ Uređaj {idx+1}: Duplikat u unosu ({col}: {val})")
-                error_indexes.append(idx)
+                errors.setdefault(idx, []).append(f"Duplikat ({col}: {val})")
+                error_devices.add(idx)
 
-    # AKO IMA GREŠAKA
+    # =========================
+    # SHOW ERRORS (CLICKABLE STYLE)
+    # =========================
     if errors:
-        st.error("❌ Pronađeni duplikati:")
+        st.error("❌ Pronađeni duplikati (klikni uređaj):")
 
-        for e in list(set(errors)):
-            st.write(e)
+        for idx, msgs in errors.items():
+            if st.button(f"➡ Uređaj {idx+1}: " + " | ".join(set(msgs))):
+                st.markdown(f"👉 Fokus na uređaj {idx+1}")
 
-        # scroll na prvi problem
-        first_error = error_indexes[0]
+        # highlight + scroll first error
+        first = list(error_devices)[0]
 
         st.markdown(f"""
         <script>
         const inputs = window.parent.document.querySelectorAll('input');
-        if(inputs[{first_error * 6}] ){{
-            inputs[{first_error * 6}].scrollIntoView({{behavior: 'smooth', block: 'center'}});
-            inputs[{first_error * 6}].style.border = "3px solid red";
+        if(inputs[{first * 6}] ){{
+            inputs[{first * 6}].scrollIntoView({{behavior: 'smooth', block: 'center'}});
+            inputs[{first * 6}].style.border = "3px solid red";
+            inputs[{first * 6}].style.backgroundColor = "#ffe6e6";
         }}
         </script>
         """, unsafe_allow_html=True)
 
         st.stop()
 
+    # =========================
     # EXPORT
+    # =========================
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
