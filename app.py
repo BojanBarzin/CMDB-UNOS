@@ -89,7 +89,7 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT + DUP CHECK + UX
+# EXPORT + DUP CHECK
 # =========================
 if st.button("📥 Download Excel"):
 
@@ -104,45 +104,35 @@ if st.button("📥 Download Excel"):
     except:
         existing_df = pd.DataFrame()
 
-    error_rows = []
+    errors = []
     error_indexes = []
 
-    # CHECK EXISTING
+    # EXISTING CHECK
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         if col in existing_df.columns:
             existing_values = set(existing_df[col].astype(str))
             for idx, val in enumerate(df[col]):
                 if val and val in existing_values:
-                    error_rows.append({
-                        **df.iloc[idx],
-                        "Error": f"{col} već postoji: {val}"
-                    })
+                    errors.append(f"❌ Uređaj {idx+1}: {col} već postoji ({val})")
                     error_indexes.append(idx)
 
-    # CHECK INPUT DUPLICATES
+    # DUP IN INPUT
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         dup_mask = df[col].duplicated(keep=False)
         for idx in df[dup_mask].index:
             val = df.loc[idx, col]
             if val:
-                error_rows.append({
-                    **df.loc[idx],
-                    "Error": f"Duplikat u unosu ({col}): {val}"
-                })
+                errors.append(f"❌ Uređaj {idx+1}: Duplikat u unosu ({col}: {val})")
                 error_indexes.append(idx)
 
-    # AKO POSTOJE GREŠKE
-    if error_rows:
-        st.error("❌ Pronađeni duplikati – pogledaj dole")
+    # AKO IMA GREŠAKA
+    if errors:
+        st.error("❌ Pronađeni duplikati:")
 
-        error_df = pd.DataFrame(error_rows).drop_duplicates()
+        for e in list(set(errors)):
+            st.write(e)
 
-        def highlight(row):
-            return ["background-color: #ffcccc"] * len(row)
-
-        st.dataframe(error_df.style.apply(highlight, axis=1))
-
-        # SCROLL NA PRVI PROBLEM
+        # scroll na prvi problem
         first_error = error_indexes[0]
 
         st.markdown(f"""
@@ -157,7 +147,7 @@ if st.button("📥 Download Excel"):
 
         st.stop()
 
-    # EXPORT NORMALNO
+    # EXPORT
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
