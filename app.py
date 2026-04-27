@@ -8,23 +8,35 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
+# SESSION STATE
+# =========================
+if "doc_type" not in st.session_state:
+    st.session_state.doc_type = None
+
+# =========================
 # DATA
 # =========================
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
 TYPE_OPTIONS = [
-    "💻 Desktop","💻 Laptop","💵 Cash drawer","📟 Cradle","☎️ IP Phone",
-    "🖥️ Monitor","🖥️ Monitor Touch Screen","🧾 Printer Pos","🏷️ Printer label",
-    "📡 Router","🔀 Switch","📟 Scanner Counter","✋ Scanner Hand",
-    "📱 Scanner Terminal","🔋 UPS","🖧 Server","🖥️ POS Beetle",
-    "🖥️ POS Custom","🖥️ POS ELO All in One","🖥️ POS NCR","📦 Other"
+    "💻 Desktop", "💻 Laptop", "💵 Cash drawer", "📟 Cradle", "☎️ IP Phone",
+    "🖥️ Monitor", "🖥️ Monitor Touch Screen", "🧾 Printer Pos", "🏷️ Printer label",
+    "📡 Router", "🔀 Switch", "📟 Scanner Counter", "✋ Scanner Hand",
+    "📱 Scanner Terminal", "🔋 UPS", "🖧 Server", "🖥️ POS Beetle",
+    "🖥️ POS Custom", "🖥️ POS ELO All in One", "🖥️ POS NCR", "📦 Other"
 ]
 
 PROJECTS_MAP = {
-    "107 Tendam": "107","108 Deichmann": "108","109 Takko": "109",
-    "112 Mercator-S": "112","115 H&M": "115","118 Metre Cash & Carry": "118",
-    "119 Ikea": "119","123 Decathlon": "123","193 Lidl": "193"
+    "107 Tendam": "107",
+    "108 Deichmann": "108",
+    "109 Takko": "109",
+    "112 Mercator-S": "112",
+    "115 H&M": "115",
+    "118 Metre Cash & Carry": "118",
+    "119 Ikea": "119",
+    "123 Decathlon": "123",
+    "193 Lidl": "193"
 }
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
@@ -33,23 +45,7 @@ UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
 APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 
 # =========================
-# DOCUMENT INPUT
-# =========================
-st.subheader("📄 Podaci za dokument")
-
-doc_broj = st.text_input("Broj dokumenta")
-doc_datum = st.date_input("Datum", value=date.today())
-
-# 🔹 ODVOJENA POLJA
-prijemnica_iz_magacina = st.text_input("Prijemnica - Iz magacina / Ime i prezime")
-otpremnica_uredjaj_zaduzio = st.text_input("Otpremnica - UREĐAJ ZADUŽIO")
-
-objekat = st.text_input("Objekat")
-adresa = st.text_input("Adresa")
-mesto = st.text_input("Mesto")
-
-# =========================
-# INPUT
+# INPUT DEVICES
 # =========================
 devices = []
 valid = True
@@ -101,13 +97,21 @@ for i in range(int(count)):
         "SPInventoryNumber": sp_clean,
         "InventoryNumber": inventory,
         "SerialNumber": serial,
-        "Project": project_value
+        "Project": project_value,
+        "Deployment State": deployment,
+        "Incident State": incident
     })
 
 # =========================
-# VALIDATION
+# HELPERS
 # =========================
-def validate(df):
+def prepare_df():
+    df = pd.DataFrame(devices)
+    df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
+    return df
+
+
+def validate_devices(df):
     errors = {}
 
     try:
@@ -117,13 +121,15 @@ def validate(df):
 
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         if col in existing_df.columns:
-            existing = set(existing_df[col].astype(str))
+            existing_values = set(existing_df[col].astype(str))
+
             for idx, val in enumerate(df[col]):
-                if val and val in existing:
-                    errors.setdefault(idx, []).append(f"{col} postoji ({val})")
+                if val and val in existing_values:
+                    errors.setdefault(idx, []).append(f"{col} već postoji ({val})")
 
     for col in ["SPInventoryNumber", "InventoryNumber", "SerialNumber"]:
         dup = df[col].duplicated(keep=False)
+
         for idx in df[dup].index:
             val = df.loc[idx, col]
             if val:
@@ -131,108 +137,176 @@ def validate(df):
 
     return errors
 
-def show_errors(errors):
-    st.error("❌ Greške:")
-    for i, msgs in errors.items():
-        st.warning(f"Uređaj {i+1}: " + " | ".join(set(msgs)))
 
-def prepare():
-    df = pd.DataFrame(devices)
-    df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
+def show_errors(errors):
+    st.error("❌ Pronađene greške:")
+    for idx, msgs in errors.items():
+        st.warning(f"Uređaj {idx + 1}: " + " | ".join(set(msgs)))
+
+
+def check_before_export():
+    if not valid:
+        st.error("❌ Popuni obavezna polja: Name, Type i SPInventoryNumber")
+        st.stop()
+
+    df = prepare_df()
+    errors = validate_devices(df)
+
+    if errors:
+        show_errors(errors)
+        st.stop()
+
     return df
 
 # =========================
-# CMDB EXPORT
+# EXPORT CMDB
 # =========================
-if st.button("📥 Download CMDB"):
-    if not valid:
-        st.error("❌ Popuni obavezna polja")
-        st.stop()
+st.markdown("---")
+st.subheader("⬇️ Export")
 
-    df = prepare()
-    err = validate(df)
+if st.button("📥 Download CMDB Excel"):
+    df = check_before_export()
 
-    if err:
-        show_errors(err)
-        st.stop()
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="CMDB")
 
-    out = BytesIO()
-    with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-
-    st.download_button("Preuzmi", data=out.getvalue(), file_name="cmdb.xlsx")
-
-# =========================
-# OTPREMNICA
-# =========================
-if st.button("📄 Otpremnica"):
-    df = prepare()
-    err = validate(df)
-
-    if err:
-        show_errors(err)
-        st.stop()
-
-    wb = load_workbook("otpremnica_template.xlsx")
-    ws = wb.active
-
-    ws["F4"] = doc_broj
-    ws["F5"] = doc_datum.strftime("%d.%m.%Y")
-
-    # 🔹 OVO SI TRAŽIO
-    ws["F8"] = otpremnica_uredjaj_zaduzio
-
-    ws["F9"] = objekat
-    ws["F10"] = adresa
-    ws["F11"] = mesto
-
-    for i, d in enumerate(devices):
-        r = 14 + i
-        ws[f"A{r}"] = i + 1
-        ws[f"B{r}"] = d["Name"]
-        ws[f"C{r}"] = d["Model"]
-        ws[f"D{r}"] = d["InventoryNumber"]
-        ws[f"E{r}"] = d["SerialNumber"]
-        ws[f"F{r}"] = d["SPInventoryNumber"]
-
-    out = BytesIO()
-    wb.save(out)
-
-    st.download_button("📥 Preuzmi Otpremnicu", out.getvalue(), "otpremnica.xlsx")
+    st.download_button(
+        "📥 Preuzmi CMDB Excel",
+        data=output.getvalue(),
+        file_name="cmdb_unos.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # =========================
-# PRIJEMNICA
+# DOCUMENT TYPE SELECT
 # =========================
-if st.button("📄 Prijemnica"):
-    df = prepare()
-    err = validate(df)
+st.markdown("---")
+st.subheader("📄 Dokument")
 
-    if err:
-        show_errors(err)
-        st.stop()
+col_doc1, col_doc2 = st.columns(2)
 
-    wb = load_workbook("prijemnica_template.xlsx")
-    ws = wb.active
+with col_doc1:
+    if st.button("📄 Otpremnica"):
+        st.session_state.doc_type = "otpremnica"
 
-    ws["D4"] = doc_broj
-    ws["D5"] = doc_datum.strftime("%d.%m.%Y")
+with col_doc2:
+    if st.button("📄 Prijemnica"):
+        st.session_state.doc_type = "prijemnica"
 
-    # 🔹 OVO SI TRAŽIO
-    ws["B8"] = prijemnica_iz_magacina
+# =========================
+# OTPREMNICA FORM
+# =========================
+if st.session_state.doc_type == "otpremnica":
+    st.markdown("---")
+    st.subheader("📄 Podaci za otpremnicu")
 
-    ws["D9"] = objekat
-    ws["D10"] = adresa
-    ws["D11"] = mesto
+    doc_broj = st.text_input("Broj otpremnice")
+    doc_datum = st.date_input("Datum otpremnice", value=date.today())
 
-    for i, d in enumerate(devices):
-        r = 14 + i
-        ws[f"A{r}"] = i + 1
-        ws[f"B{r}"] = d["Name"]
-        ws[f"C{r}"] = d["SerialNumber"]
-        ws[f"D{r}"] = d["SPInventoryNumber"]
-        ws[f"E{r}"] = d["InventoryNumber"]
+    otpremnica_uredjaj_zaduzio = st.text_input(
+        "UREĐAJ ZADUŽIO (ime i prezime / naziv firme)"
+    )
 
-    out = BytesIO()
-    wb.save(out)
+    objekat = st.text_input("Objekat")
+    adresa = st.text_input("Adresa")
+    mesto = st.text_input("Mesto")
 
-    st.download_button("📥 Preuzmi Prijemnicu", out.getvalue(), "prijemnica.xlsx")
+    if st.button("📥 Generiši Otpremnicu"):
+        df = check_before_export()
+
+        try:
+            wb = load_workbook("otpremnica_template.xlsx")
+            ws = wb.active
+        except:
+            st.error("❌ Nije pronađen fajl: otpremnica_template.xlsx")
+            st.stop()
+
+        ws["F4"] = doc_broj
+        ws["F5"] = doc_datum.strftime("%d.%m.%Y")
+
+        ws["F8"] = otpremnica_uredjaj_zaduzio
+        ws["F9"] = objekat
+        ws["F10"] = adresa
+        ws["F11"] = mesto
+
+        start_row = 14
+
+        for i, d in enumerate(devices):
+            r = start_row + i
+
+            ws[f"A{r}"] = i + 1
+            ws[f"B{r}"] = d["Name"]
+            ws[f"C{r}"] = d["Model"]
+            ws[f"D{r}"] = d["InventoryNumber"]
+            ws[f"E{r}"] = d["SerialNumber"]
+            ws[f"F{r}"] = d["SPInventoryNumber"]
+            ws[f"G{r}"] = ""
+
+        output = BytesIO()
+        wb.save(output)
+
+        st.download_button(
+            "📥 Preuzmi Otpremnicu",
+            data=output.getvalue(),
+            file_name="otpremnica.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+# =========================
+# PRIJEMNICA FORM
+# =========================
+if st.session_state.doc_type == "prijemnica":
+    st.markdown("---")
+    st.subheader("📄 Podaci za prijemnicu")
+
+    doc_broj = st.text_input("Broj prijemnice")
+    doc_datum = st.date_input("Datum prijemnice", value=date.today())
+
+    prijemnica_iz_magacina = st.text_input(
+        "Iz magacina / Ime i prezime"
+    )
+
+    objekat = st.text_input("Objekat")
+    adresa = st.text_input("Adresa")
+    mesto = st.text_input("Mesto")
+
+    if st.button("📥 Generiši Prijemnicu"):
+        df = check_before_export()
+
+        try:
+            wb = load_workbook("prijemnica_template.xlsx")
+            ws = wb.active
+        except:
+            st.error("❌ Nije pronađen fajl: prijemnica_template.xlsx")
+            st.stop()
+
+        ws["D4"] = doc_broj
+        ws["D5"] = doc_datum.strftime("%d.%m.%Y")
+
+        ws["B8"] = prijemnica_iz_magacina
+        ws["D9"] = objekat
+        ws["D10"] = adresa
+        ws["D11"] = mesto
+
+        start_row = 14
+
+        for i, d in enumerate(devices):
+            r = start_row + i
+
+            ws[f"A{r}"] = i + 1
+            ws[f"B{r}"] = d["Name"]
+            ws[f"C{r}"] = d["SerialNumber"]
+            ws[f"D{r}"] = d["SPInventoryNumber"]
+            ws[f"E{r}"] = d["InventoryNumber"]
+            ws[f"F{r}"] = ""
+
+        output = BytesIO()
+        wb.save(output)
+
+        st.download_button(
+            "📥 Preuzmi Prijemnicu",
+            data=output.getvalue(),
+            file_name="prijemnica.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
