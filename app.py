@@ -7,19 +7,12 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("CMDB Unos")
 
 # =========================
-# LOAD EXISTING DATA
+# LOAD LOCAL DATA (ONLY FOR EXPORT, NOT REAL-TIME CHECK)
 # =========================
 try:
     existing_df = pd.read_excel("data.xlsx")
 except:
     existing_df = pd.DataFrame()
-
-def is_duplicate(column, value):
-    if existing_df is None or existing_df.empty:
-        return False
-    if column not in existing_df.columns:
-        return False
-    return str(value) in existing_df[column].astype(str).values
 
 # =========================
 # DATA
@@ -65,9 +58,6 @@ PROJECTS_MAP = {
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
 
-UPS_VENDORS = ["APC", "CyberPower", "Socomec", "Inform", "Mustec"]
-APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
-
 # =========================
 # STATE
 # =========================
@@ -81,7 +71,7 @@ for i in range(int(count)):
     st.subheader(f"Uređaj {i+1}")
 
     # =========================
-    # FIX 2 - 3 KOLONE LAYOUT
+    # FIX 2 - LAYOUT
     # =========================
     col1, col2, col3 = st.columns(3)
 
@@ -103,7 +93,7 @@ for i in range(int(count)):
         serial = st.text_input("SerialNumber", key=f"serial{i}")
 
     # =========================
-    # VALIDATION
+    # VALIDATION (ONLY REQUIRED FIELDS)
     # =========================
     if not name:
         st.error("Name je obavezan")
@@ -125,19 +115,8 @@ for i in range(int(count)):
         st.error("SP mora počinjati sa FS ili SP")
         valid = False
 
-    if is_duplicate("SPInventoryNumber", sp_clean):
-        st.error("SP već postoji")
-        valid = False
-
-    # OPTIONAL CHECKS
-    if is_duplicate("InventoryNumber", inventory):
-        st.warning("Inventory već postoji")
-
-    if is_duplicate("SerialNumber", serial):
-        st.warning("Serial već postoji")
-
     # =========================
-    # EXTRA FIELDS (BELOW)
+    # EXTRA ROW (BELOW)
     # =========================
     col4, col5, col6 = st.columns(3)
 
@@ -179,6 +158,7 @@ if st.button("Download Excel"):
 
     df = pd.DataFrame(devices)
 
+    # clean type for Excel
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
