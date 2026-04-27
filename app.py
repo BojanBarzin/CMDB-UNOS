@@ -7,7 +7,14 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# LOAD MASTER EXCEL
+# DROPDOWNS
+# =========================
+DEPLOYMENT_STATES = ["In Use", "In Stock", "Retired", "Repair"]
+INCIDENT_STATES = ["None", "Open", "Closed", "Pending"]
+PROJECTS = ["Project A", "Project B", "Project C", "Other"]
+
+# =========================
+# LOAD MASTER (duplikati)
 # =========================
 @st.cache_data
 def load_main():
@@ -18,9 +25,6 @@ def load_main():
 
 main_df = load_main()
 
-# =========================
-# DUPLIKAT CHECK
-# =========================
 def exists(value, column):
     if main_df.empty:
         return False
@@ -29,69 +33,90 @@ def exists(value, column):
     return str(value) in main_df[column].astype(str).values
 
 # =========================
-# BROJ UREĐAJA
+# INPUT
 # =========================
-count = st.number_input("Broj uređaja", min_value=1, max_value=50, value=1)
+count = st.number_input("Broj uređaja", 1, 50, 1)
 
 devices = []
 
-# =========================
-# INPUT LOOP
-# =========================
 for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
+    # =========================
     # OBAVEZNA POLJA
+    # =========================
     name = st.text_input("Name *", key=f"name{i}")
     model = st.text_input("Model *", key=f"model{i}")
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
 
-    # OPCIONALNA POLJA
-    type_ = st.text_input("Type", key=f"type{i}")
+    # =========================
+    # OSTALA POLJA
+    # =========================
+    deployment = st.selectbox(
+        "Deployment State",
+        DEPLOYMENT_STATES,
+        key=f"dep{i}"
+    )
+
+    incident = st.selectbox(
+        "Incident State",
+        INCIDENT_STATES,
+        key=f"inc{i}"
+    )
+
     vendor = st.text_input("Vendor", key=f"vendor{i}")
+    type_ = st.text_input("Type", key=f"type{i}")
     serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
+    project = st.selectbox(
+        "Project",
+        PROJECTS,
+        key=f"proj{i}"
+    )
+
     # =========================
-    # VALIDACIJA OBAVEZNIH
+    # VALIDACIJA
     # =========================
     if name and model and sp:
 
-        # duplikat check (SP najbitniji)
         if exists(sp, "SPInventoryNumber"):
-            st.error("❌ SP već postoji u CMDB")
+            st.error("❌ SP već postoji")
 
         if serial and exists(serial, "SerialNumber"):
-            st.error("❌ Serial već postoji u CMDB")
+            st.error("❌ Serial već postoji")
 
         if inventory and exists(inventory, "InventoryNumber"):
-            st.error("❌ Inventory već postoji u CMDB")
+            st.error("❌ Inventory već postoji")
 
-        st.success("✔ Uređaj OK")
+        st.success("✔ OK")
 
         devices.append({
             "Name": name.strip(),
             "Model": model.strip(),
-            "Type": type_.strip() if type_ else "",
-            "Vendor": vendor.strip() if vendor else "",
-            "SerialNumber": serial.strip() if serial else "",
-            "InventoryNumber": inventory.strip() if inventory else "",
-            "SPInventoryNumber": sp.strip()
+            "Type": type_,
+            "Vendor": vendor,
+            "SerialNumber": serial,
+            "InventoryNumber": inventory,
+            "SPInventoryNumber": sp.strip(),
+            "Deployment State": deployment,
+            "Incident State": incident,
+            "Project": project
         })
 
     else:
         st.warning("⚠ Name, Model i SP su obavezni")
 
 # =========================
-# EXPORT EXCEL
+# EXPORT
 # =========================
 if st.button("💾 Preuzmi Excel"):
 
     df = pd.DataFrame(devices)
 
     if df.empty:
-        st.error("❌ Nema validnih uređaja za export")
+        st.error("❌ Nema validnih uređaja")
     else:
         output = BytesIO()
 
