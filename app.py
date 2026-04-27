@@ -1,66 +1,89 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from PIL import Image
+from pyzbar.pyzbar import decode
 
-import cv2
-from pyzbar import pyzbar
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+st.set_page_config(page_title="CMDB Batch + Scan + Validation", layout="centered")
 
-st.set_page_config(page_title="CMDB Batch Scan", layout="centered")
-
-st.title("📦 CMDB Batch + Scan po polju")
+st.title("📦 CMDB Batch Unos + Scan + Duplikat Check")
 
 # =========================
-# SCANNER STATE
+# LOAD CMDB EXCEL
 # =========================
-if "scan_target" not in st.session_state:
-    st.session_state.scan_target = None
+@st.cache_data
+def load_main():
+    try:
+        return pd.read_excel("data.xlsx")
+    except:
+        return pd.DataFrame()
 
-if "scan_value" not in st.session_state:
-    st.session_state.scan_value = ""
-
-# =========================
-# SCANNER
-# =========================
-class Scanner(VideoTransformerBase):
-    def __init__(self):
-        self.code = None
-
-    def transform(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        barcodes = pyzbar.decode(img)
-
-        for b in barcodes:
-            x, y, w, h = b.rect
-            cv2.rectangle(img, (x, y), (x+w, y+h), (0,255,0), 2)
-
-            self.code = b.data.decode("utf-8")
-
-            cv2.putText(img, self.code, (x, y-10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
-
-        return img
+main_df = load_main()
 
 # =========================
-# CAMER STREAM
+# DUPLIKAT FUNKCIJA
 # =========================
-def start_scan(target_key):
-    st.session_state.scan_target = target_key
+def check_duplicate(value, column):
+    if main_df.empty:
+        return False
+    if column not in main_df.columns:
+        return False
+    return str(value) in main_df[column].astype(str).values
 
-st.subheader("📷 Kamera Scan")
+# =========================
+# CAMERA SCAN (CLOUD SAFE)
+# =========================
+st.subheader("📷 Scan QR / Barcode")
 
-ctx = webrtc_streamer(
-    key="scanner",
-    video_transformer_factory=Scanner
-)
+img = st.camera_input("Skeniraj kod")
 
-if ctx.video_transformer and ctx.video_transformer.code:
-    code = ctx.video_transformer.code
+scanned_value = None
 
-    if st.session_state.scan_target:
-        st.session_state[st.session_state.scan_target] = code
-        st.success(f"✔ Upisano u {st.session_state.scan_target}: {code}")
-        st.session_state.scan_target = None
+if img is not None:
+    image = Image.open(img)
+    result = decode(image)
+
+    for r in result:
+        scanned_value = r.data.decode("utf-8")
+        st.success(f"📌 Skenirano: {scanned_value}")
+
+# =========================
+# AUTOCOMPLETE NAME
+# =========================
+st.subheader("🔎 Pretraga uređaja")
+
+search = st.text_input("Kucaj Name")
+
+if not main_df.empty and "Name" in main_df.columns:
+    if search:
+        filtered = main_df[
+            main_df["Name"].astype(str).str.contains(search, case=False, na=False)
+        ]
+    else:
+        filtered = main_df
+
+    options = filtered["Name"].dropna().unique()[:10]
+else:
+    options = []
+
+selected = st.selectbox("Izaberi uređaj", [""] + list(options))
+
+# =========================
+# AUTO FILL
+# =========================
+autofill = {}
+
+if selected and not main_df.empty:
+    row = main_df[main_df["Name"] == selected]
+
+    if not row.empty:
+        r = row.iloc[0]
+        autofill = {
+            "Name": r.get("Name", ""),
+            "Model": r.get("Model", ""),
+            "Type": r.get("Type", ""),
+            "Vendor": r.get("Vendor", "")
+        }
 
 # =========================
 # BATCH INPUT
@@ -70,49 +93,47 @@ count = st.number_input("Broj uređaja", 1, 20, 1)
 devices = []
 
 for i in range(int(count)):
+    st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
-    name = st.text_input("Name", key=f"name{i}")
-    model = st.text_input("Model", key=f"model{i}")
-    type_ = st.text_input("Type", key=f"type{i}")
-    vendor = st.text_input("Vendor", key=f"vendor{i}")
+    # NAME
+    name = st.text_input("Name", value=autofill.get("Name", ""), key=f"name{i}")
+    model = st.text_input("Model", value=autofill.get("Model", ""), key=f"model{i}")
+    type_ = st.text_input("Type", value=autofill.get("Type", ""), key=f"type{i}")
+    vendor = st.text_input("Vendor", value=autofill.get("Vendor", ""), key=f"vendor{i}")
 
-    # =========================
-    # SERIAL + CAMERA
-    # =========================
-    col1, col2 = st.columns([3,1])
+    # SERIAL + CHECK
+    serial = st.text_input(
+        "SerialNumber",
+        value=scanned_value if scanned_value else "",
+        key=f"serial{i}"
+    )
 
-    with col1:
-        serial = st.text_input("SerialNumber", key=f"serial{i}")
+    if serial:
+        if check_duplicate(serial, "SerialNumber"):
+            st.error("❌ Serial već postoji u CMDB")
+        else:
+            st.success("✔ Serial OK")
 
-    with col2:
-        if st.button("📷", key=f"scan_serial{i}"):
-            start_scan(f"serial{i}")
+    # INVENTORY + CHECK
+    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
-    # =========================
-    # INVENTORY + CAMERA
-    # =========================
-    col1, col2 = st.columns([3,1])
+    if inventory:
+        if check_duplicate(inventory, "InventoryNumber"):
+            st.error("❌ Inventory već postoji u CMDB")
+        else:
+            st.success("✔ Inventory OK")
 
-    with col1:
-        inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+    # SP + CHECK
+    sp = st.text_input("SPInventoryNumber", key=f"sp{i}")
 
-    with col2:
-        if st.button("📷", key=f"scan_inv{i}"):
-            start_scan(f"inv{i}")
+    if sp:
+        if check_duplicate(sp, "SPInventoryNumber"):
+            st.error("❌ SP već postoji u CMDB")
+        else:
+            st.success("✔ SP OK")
 
-    # =========================
-    # SP + CAMERA
-    # =========================
-    col1, col2 = st.columns([3,1])
-
-    with col1:
-        sp = st.text_input("SPInventoryNumber", key=f"sp{i}")
-
-    with col2:
-        if st.button("📷", key=f"scan_sp{i}"):
-            start_scan(f"sp{i}")
-
+    # SKIP EMPTY ROWS
     if name or inventory:
         devices.append({
             "Name": name,
@@ -125,23 +146,25 @@ for i in range(int(count)):
         })
 
 # =========================
-# EXPORT
+# EXPORT EXCEL
 # =========================
-if st.button("💾 Preuzmi Excel"):
+if st.button("💾 Sačuvaj i preuzmi Excel"):
 
     df = pd.DataFrame(devices)
 
     if df.empty:
-        st.error("❌ Nema podataka")
+        st.error("❌ Nema unetih uređaja!")
     else:
         output = BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False)
+            df.to_excel(writer, index=False, sheet_name="CMDB")
+
+        st.success(f"✅ Sačuvano uređaja: {len(df)}")
 
         st.download_button(
-            "📥 Download Excel",
+            "📥 Preuzmi Excel",
             data=output.getvalue(),
-            file_name="cmdb_scan.xlsx",
+            file_name="cmdb_batch_final.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
