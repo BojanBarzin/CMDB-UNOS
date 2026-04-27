@@ -1,97 +1,147 @@
 import streamlit as st
 import pandas as pd
-import os
 from io import BytesIO
 
-st.set_page_config(page_title="CMDB Unos", layout="centered")
+import cv2
+from pyzbar import pyzbar
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
-st.title("➕ CMDB Unos uređaja")
+st.set_page_config(page_title="CMDB Batch Scan", layout="centered")
 
-# =========================
-# LOAD MASTER EXCEL
-# =========================
-@st.cache_data
-def load_main():
-    if os.path.exists("data.xlsx"):
-        return pd.read_excel("data.xlsx")
-    else:
-        st.error("❌ Nedostaje data.xlsx (master baza)")
-        return pd.DataFrame()
-
-main_df = load_main()
+st.title("📦 CMDB Batch + Scan po polju")
 
 # =========================
-# FUNKCIJA PROVERE
+# SCANNER STATE
 # =========================
-def exists(value, column):
-    if main_df.empty:
-        return False
-    if column not in main_df.columns:
-        return False
-    return str(value) in main_df[column].astype(str).values
+if "scan_target" not in st.session_state:
+    st.session_state.scan_target = None
 
-# =========================
-# FORMA
-# =========================
-with st.form("unos_forma"):
-
-    name = st.text_input("Name")
-    model = st.text_input("Model")
-    type_ = st.text_input("Type")
-    vendor = st.text_input("Vendor")
-
-    serial = st.text_input("SerialNumber")
-    inventory = st.text_input("InventoryNumber")
-    sp = st.text_input("SPInventoryNumber")
-
-    status = st.selectbox("Status", ["Aktivan", "Na servisu", "Otpisan"])
-
-    submit = st.form_submit_button("💾 Sačuvaj i preuzmi")
+if "scan_value" not in st.session_state:
+    st.session_state.scan_value = ""
 
 # =========================
-# VALIDACIJA + EXPORT
+# SCANNER
 # =========================
-if submit:
+class Scanner(VideoTransformerBase):
+    def __init__(self):
+        self.code = None
 
-    # obavezna polja
-    if not inventory or not sp:
-        st.error("❌ Inventory i SP su obavezni!")
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        barcodes = pyzbar.decode(img)
 
-    # duplikati
-    elif serial and exists(serial, "SerialNumber"):
-        st.error("❌ Serial već postoji u CMDB!")
+        for b in barcodes:
+            x, y, w, h = b.rect
+            cv2.rectangle(img, (x, y), (x+w, y+h), (0,255,0), 2)
 
-    elif exists(inventory, "InventoryNumber"):
-        st.error("❌ Inventory već postoji u CMDB!")
+            self.code = b.data.decode("utf-8")
 
-    elif exists(sp, "SPInventoryNumber"):
-        st.error("❌ SP već postoji u CMDB!")
+            cv2.putText(img, self.code, (x, y-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
 
-    else:
-        new_row = pd.DataFrame([{
+        return img
+
+# =========================
+# CAMER STREAM
+# =========================
+def start_scan(target_key):
+    st.session_state.scan_target = target_key
+
+st.subheader("📷 Kamera Scan")
+
+ctx = webrtc_streamer(
+    key="scanner",
+    video_transformer_factory=Scanner
+)
+
+if ctx.video_transformer and ctx.video_transformer.code:
+    code = ctx.video_transformer.code
+
+    if st.session_state.scan_target:
+        st.session_state[st.session_state.scan_target] = code
+        st.success(f"✔ Upisano u {st.session_state.scan_target}: {code}")
+        st.session_state.scan_target = None
+
+# =========================
+# BATCH INPUT
+# =========================
+count = st.number_input("Broj uređaja", 1, 20, 1)
+
+devices = []
+
+for i in range(int(count)):
+    st.subheader(f"📦 Uređaj {i+1}")
+
+    name = st.text_input("Name", key=f"name{i}")
+    model = st.text_input("Model", key=f"model{i}")
+    type_ = st.text_input("Type", key=f"type{i}")
+    vendor = st.text_input("Vendor", key=f"vendor{i}")
+
+    # =========================
+    # SERIAL + CAMERA
+    # =========================
+    col1, col2 = st.columns([3,1])
+
+    with col1:
+        serial = st.text_input("SerialNumber", key=f"serial{i}")
+
+    with col2:
+        if st.button("📷", key=f"scan_serial{i}"):
+            start_scan(f"serial{i}")
+
+    # =========================
+    # INVENTORY + CAMERA
+    # =========================
+    col1, col2 = st.columns([3,1])
+
+    with col1:
+        inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+
+    with col2:
+        if st.button("📷", key=f"scan_inv{i}"):
+            start_scan(f"inv{i}")
+
+    # =========================
+    # SP + CAMERA
+    # =========================
+    col1, col2 = st.columns([3,1])
+
+    with col1:
+        sp = st.text_input("SPInventoryNumber", key=f"sp{i}")
+
+    with col2:
+        if st.button("📷", key=f"scan_sp{i}"):
+            start_scan(f"sp{i}")
+
+    if name or inventory:
+        devices.append({
             "Name": name,
             "Model": model,
             "Type": type_,
             "Vendor": vendor,
             "SerialNumber": serial,
             "InventoryNumber": inventory,
-            "SPInventoryNumber": sp,
-            "Status": status
-        }])
+            "SPInventoryNumber": sp
+        })
 
-        # =========================
-        # EXPORT EXCEL (DOWNLOAD)
-        # =========================
+# =========================
+# EXPORT
+# =========================
+if st.button("💾 Preuzmi Excel"):
+
+    df = pd.DataFrame(devices)
+
+    if df.empty:
+        st.error("❌ Nema podataka")
+    else:
         output = BytesIO()
 
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            new_row.to_excel(writer, index=False, sheet_name="NoviUredjaj")
-
-        st.success("✅ Uređaj prošao validaciju!")
+            df.to_excel(writer, index=False)
 
         st.download_button(
-            "📥 Preuzmi Excel",
+            "📥 Download Excel",
             data=output.getvalue(),
-            file_name=f"cmdb_{inventory}.xlsx",
+            file_name="cmdb_scan.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
