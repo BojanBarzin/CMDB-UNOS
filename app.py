@@ -6,19 +6,17 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("📦 CMDB Unos")
 
 # =========================
-# LOAD EXISTING DATA
+# LOAD DATA (FAST)
 # =========================
 try:
     existing_df = pd.read_excel("data.xlsx")
-except:
-    existing_df = pd.DataFrame()
 
-def exists(column, value):
-    if existing_df is None or existing_df.empty:
-        return False
-    if column not in existing_df.columns:
-        return False
-    return str(value) in existing_df[column].astype(str).values
+    sp_existing = set(existing_df.get("SPInventoryNumber", []).astype(str))
+    inv_existing = set(existing_df.get("InventoryNumber", []).astype(str))
+    serial_existing = set(existing_df.get("SerialNumber", []).astype(str))
+
+except:
+    sp_existing, inv_existing, serial_existing = set(), set(), set()
 
 # =========================
 # DATA
@@ -51,7 +49,7 @@ APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 devices = []
 valid = True
 
-# 🔥 NOVO: setovi za duplikate u istoj sesiji
+# session sets (BRZO)
 sp_set = set()
 inv_set = set()
 serial_set = set()
@@ -84,7 +82,7 @@ for i in range(int(count)):
         valid = False
 
     # =========================
-    # SP VALIDATION + DUP CHECK
+    # SP
     # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
@@ -93,36 +91,36 @@ for i in range(int(count)):
         st.error("❌ SP je obavezan")
         valid = False
     elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati tačno 7 karaktera")
+        st.error("❌ SP mora imati 7 karaktera")
         valid = False
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
         st.error("❌ SP mora počinjati sa FS ili SP")
         valid = False
-    elif exists("SPInventoryNumber", sp_clean) or sp_clean in sp_set:
+    elif sp_clean in sp_existing or sp_clean in sp_set:
         st.error("❌ SP već postoji")
         valid = False
 
     sp_set.add(sp_clean)
 
     # =========================
-    # INVENTORY + DUP CHECK
+    # INVENTORY
     # =========================
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
 
     if inventory:
-        if exists("InventoryNumber", inventory) or inventory in inv_set:
+        if inventory in inv_existing or inventory in inv_set:
             st.error("❌ Inventory već postoji")
             valid = False
 
     inv_set.add(inventory)
 
     # =========================
-    # SERIAL + DUP CHECK
+    # SERIAL
     # =========================
     serial = st.text_input("SerialNumber", key=f"serial{i}")
 
     if serial:
-        if exists("SerialNumber", serial) or serial in serial_set:
+        if serial in serial_existing or serial in serial_set:
             st.error("❌ Serial već postoji")
             valid = False
 
