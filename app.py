@@ -7,7 +7,7 @@ st.set_page_config(page_title="CMDB Unos", layout="centered")
 st.title("CMDB Unos")
 
 # =========================
-# LOAD EXISTING DATA (LOCAL FILE)
+# LOAD EXISTING DATA
 # =========================
 try:
     existing_df = pd.read_excel("data.xlsx")
@@ -80,37 +80,39 @@ for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"Uređaj {i+1}")
 
-    # NAME
-    name = st.text_input("Name *", key=f"name{i}")
+    # =========================
+    # FIX 2 - 3 KOLONE LAYOUT
+    # =========================
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        name = st.text_input("Name *", key=f"name{i}")
+        vendor = st.text_input("Vendor", key=f"vendor{i}")
+
+    with col2:
+        model = st.text_input("Model", key=f"model{i}")
+        type_label = st.selectbox(
+            "Type *",
+            [""] + TYPE_OPTIONS,
+            key=f"type{i}"
+        )
+
+    with col3:
+        sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+        inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+        serial = st.text_input("SerialNumber", key=f"serial{i}")
+
+    # =========================
+    # VALIDATION
+    # =========================
     if not name:
         st.error("Name je obavezan")
         valid = False
-
-    # VENDOR
-    if name == "UPS":
-        vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
-    else:
-        vendor = st.text_input("Vendor", key=f"vendor{i}")
-
-    # MODEL
-    if vendor == "APC":
-        model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
-    else:
-        model = st.text_input("Model", key=f"model{i}")
-
-    # TYPE (BLANK FIRST)
-    type_label = st.selectbox(
-        "Type *",
-        [""] + TYPE_OPTIONS,
-        key=f"type{i}"
-    )
 
     if not type_label:
         st.error("Type je obavezan")
         valid = False
 
-    # SP
-    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
 
     if not sp_clean:
@@ -127,23 +129,32 @@ for i in range(int(count)):
         st.error("SP već postoji")
         valid = False
 
-    # OPTIONAL
-    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-    serial = st.text_input("SerialNumber", key=f"serial{i}")
-
+    # OPTIONAL CHECKS
     if is_duplicate("InventoryNumber", inventory):
         st.warning("Inventory već postoji")
 
     if is_duplicate("SerialNumber", serial):
         st.warning("Serial već postoji")
 
-    deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
-    incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
+    # =========================
+    # EXTRA FIELDS (BELOW)
+    # =========================
+    col4, col5, col6 = st.columns(3)
 
-    project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
+    with col4:
+        deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
+
+    with col5:
+        incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
+
+    with col6:
+        project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
+
     project_value = PROJECTS_MAP.get(project_label, "")
 
+    # =========================
     # SAVE
+    # =========================
     devices.append({
         "Name": name,
         "Vendor": vendor,
@@ -158,7 +169,7 @@ for i in range(int(count)):
     })
 
 # =========================
-# EXPORT (CLEAN TYPE)
+# EXPORT
 # =========================
 if st.button("Download Excel"):
 
@@ -168,7 +179,6 @@ if st.button("Download Excel"):
 
     df = pd.DataFrame(devices)
 
-    # remove icons for Excel
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
 
     output = BytesIO()
