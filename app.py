@@ -27,39 +27,17 @@ DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
 TYPE_OPTIONS = [
-    "💻 Desktop",
-    "💻 Laptop",
-    "💵 Cash drawer",
-    "📟 Cradle",
-    "☎️ IP Phone",
-    "🖥️ Monitor",
-    "🖥️ Monitor Touch Screen",
-    "🧾 Printer Pos",
-    "🏷️ Printer label",
-    "📡 Router",
-    "🔀 Switch",
-    "📟 Scanner Counter",
-    "✋ Scanner Hand",
-    "📱 Scanner Terminal",
-    "🔋 UPS",
-    "🖧 Server",
-    "🖥️ POS Beetle",
-    "🖥️ POS Custom",
-    "🖥️ POS ELO All in One",
-    "🖥️ POS NCR",
-    "📦 Other"
+    "💻 Desktop","💻 Laptop","💵 Cash drawer","📟 Cradle","☎️ IP Phone",
+    "🖥️ Monitor","🖥️ Monitor Touch Screen","🧾 Printer Pos","🏷️ Printer label",
+    "📡 Router","🔀 Switch","📟 Scanner Counter","✋ Scanner Hand",
+    "📱 Scanner Terminal","🔋 UPS","🖧 Server","🖥️ POS Beetle",
+    "🖥️ POS Custom","🖥️ POS ELO All in One","🖥️ POS NCR","📦 Other"
 ]
 
 PROJECTS_MAP = {
-    "107 Tendam": "107",
-    "108 Deichmann": "108",
-    "109 Takko": "109",
-    "112 Mercator-S": "112",
-    "115 H&M": "115",
-    "118 Metre Cash & Carry": "118",
-    "119 Ikea": "119",
-    "123 Decathlon": "123",
-    "193 Lidl": "193"
+    "107 Tendam": "107","108 Deichmann": "108","109 Takko": "109",
+    "112 Mercator-S": "112","115 H&M": "115","118 Metre Cash & Carry": "118",
+    "119 Ikea": "119","123 Decathlon": "123","193 Lidl": "193"
 }
 
 PROJECTS_LABELS = list(PROJECTS_MAP.keys())
@@ -73,7 +51,6 @@ APC_MODELS = ["APC350", "APC500", "APC650", "APC1000"]
 devices = []
 valid = True
 
-# session duplicates (extra safety)
 sp_set = set()
 inv_set = set()
 serial_set = set()
@@ -84,60 +61,62 @@ for i in range(int(count)):
     st.markdown("---")
     st.subheader(f"📦 Uređaj {i+1}")
 
-    # NAME
-    name = st.text_input("Name *", key=f"name{i}")
+    # =========================
+    # FIX 2 - 3 COLUMNS
+    # =========================
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        name = st.text_input("Name *", key=f"name{i}")
+        if name == "UPS":
+            vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
+        else:
+            vendor = st.text_input("Vendor", key=f"vendor{i}")
+
+    with col2:
+        if vendor == "APC":
+            model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
+        else:
+            model = st.text_input("Model", key=f"model{i}")
+
+        type_label = st.selectbox("Type *", [""] + TYPE_OPTIONS, key=f"type{i}")
+
+        if not type_label:
+            st.error("❌ Type je obavezan")
+            valid = False
+
+    with col3:
+        sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
+        inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+        serial = st.text_input("SerialNumber", key=f"serial{i}")
+
+    # =========================
+    # VALIDATION
+    # =========================
     if not name:
         st.error("❌ Name je obavezan")
         valid = False
 
-    # VENDOR
-    if name == "UPS":
-        vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
-    else:
-        vendor = st.text_input("Vendor", key=f"vendor{i}")
-
-    # MODEL
-    if vendor == "APC":
-        model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
-    else:
-        model = st.text_input("Model", key=f"model{i}")
-
-    # TYPE
-    type_label = st.selectbox(
-        "Type *",
-        [""] + TYPE_OPTIONS,
-        key=f"type{i}"
-    )
-
-    if not type_label:
-        st.error("❌ Type je obavezan")
-        valid = False
-
-    # SP
-    sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
 
     if not sp_clean:
         st.error("❌ SP je obavezan")
         valid = False
     elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati tačno 7 karaktera")
+        st.error("❌ SP mora imati 7 karaktera")
         valid = False
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
         st.error("❌ SP mora počinjati sa FS ili SP")
         valid = False
 
     # =========================
-    # DUPLICATE CHECK (EXCEL + SESSION)
+    # DUPLICATES
     # =========================
     if sp_clean:
         if exists("SPInventoryNumber", sp_clean) or sp_clean in sp_set:
             st.error("❌ SP već postoji")
             valid = False
         sp_set.add(sp_clean)
-
-    inventory = st.text_input("InventoryNumber", key=f"inv{i}")
-    serial = st.text_input("SerialNumber", key=f"serial{i}")
 
     if inventory:
         if exists("InventoryNumber", inventory) or inventory in inv_set:
@@ -151,14 +130,25 @@ for i in range(int(count)):
             valid = False
         serial_set.add(serial)
 
-    # OPTIONAL
-    deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
-    incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
+    # =========================
+    # EXTRA ROW (3 COLUMNS)
+    # =========================
+    col4, col5, col6 = st.columns(3)
 
-    project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
+    with col4:
+        deployment = st.selectbox("Deployment State", [""] + DEPLOYMENT_STATES, key=f"dep{i}")
+
+    with col5:
+        incident = st.selectbox("Incident State", [""] + INCIDENT_STATES, key=f"inc{i}")
+
+    with col6:
+        project_label = st.selectbox("Project", [""] + PROJECTS_LABELS, key=f"proj{i}")
+
     project_value = PROJECTS_MAP.get(project_label, "")
 
+    # =========================
     # SAVE
+    # =========================
     devices.append({
         "Name": name,
         "Vendor": vendor,
