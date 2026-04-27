@@ -55,9 +55,15 @@ for i in range(int(count)):
     if not name:
         valid = False
 
-    vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}") if name == "UPS" else st.text_input("Vendor", key=f"vendor{i}")
+    if name == "UPS":
+        vendor = st.selectbox("Vendor", [""] + UPS_VENDORS, key=f"vendor{i}")
+    else:
+        vendor = st.text_input("Vendor", key=f"vendor{i}")
 
-    model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}") if vendor == "APC" else st.text_input("Model", key=f"model{i}")
+    if vendor == "APC":
+        model = st.selectbox("Model", [""] + APC_MODELS, key=f"model{i}")
+    else:
+        model = st.text_input("Model", key=f"model{i}")
 
     type_label = st.selectbox("Type *", [""] + TYPE_OPTIONS, key=f"type{i}")
     if not type_label:
@@ -85,13 +91,23 @@ for i in range(int(count)):
 # =========================
 # HELPERS
 # =========================
-def center(ws, cell):
+def set_cell(ws, cell, value):
+    for merged_range in ws.merged_cells.ranges:
+        if cell in merged_range:
+            top_left = merged_range.start_cell.coordinate
+            ws[top_left] = value
+            ws[top_left].alignment = Alignment(horizontal="center", vertical="center")
+            return
+
+    ws[cell] = value
     ws[cell].alignment = Alignment(horizontal="center", vertical="center")
+
 
 def prepare_df():
     df = pd.DataFrame(devices)
     df["Type"] = df["Type"].str.replace(r"[^\w\s\-\/]", "", regex=True).str.strip()
     return df
+
 
 def validate_devices(df):
     errors = {}
@@ -117,14 +133,16 @@ def validate_devices(df):
 
     return errors
 
+
 def show_errors(errors):
     st.error("❌ Greške:")
     for i, msgs in errors.items():
         st.warning(f"Uređaj {i+1}: " + " | ".join(set(msgs)))
 
+
 def check(df):
     if not valid:
-        st.error("❌ Popuni obavezna polja")
+        st.error("❌ Popuni obavezna polja: Name, Type i SPInventoryNumber")
         st.stop()
 
     err = validate_devices(df)
@@ -152,39 +170,53 @@ if st.session_state.doc_type == "otpremnica":
 
     broj = st.text_input("Broj")
     datum = st.date_input("Datum", value=date.today())
-    zaduzio = st.text_input("UREĐAJ ZADUŽIO")
+    zaduzio = st.text_input("UREĐAJ ZADUŽIO *")
     objekat = st.text_input("Objekat")
     adresa = st.text_input("Adresa")
     mesto = st.text_input("Mesto")
 
     if st.button("Generiši Otpremnicu"):
+        if not zaduzio.strip():
+            st.error("❌ Polje 'UREĐAJ ZADUŽIO' je obavezno")
+            st.stop()
+
         df = prepare_df()
         check(df)
 
-        wb = load_workbook("otpremnica_template.xlsx")
-        ws = wb.active
+        try:
+            wb = load_workbook("otpremnica_template.xlsx")
+            ws = wb.active
+        except:
+            st.error("❌ Nije pronađen fajl: otpremnica_template.xlsx")
+            st.stop()
 
-        ws["F4"] = broj; center(ws, "F4")
-        ws["F5"] = datum.strftime("%d.%m.%Y"); center(ws, "F5")
+        set_cell(ws, "F4", broj)
+        set_cell(ws, "F5", datum.strftime("%d.%m.%Y"))
 
-        ws["G8"] = zaduzio; center(ws, "G8")
-        ws["F9"] = objekat; center(ws, "F9")
-        ws["F10"] = adresa; center(ws, "F10")
-        ws["F11"] = mesto; center(ws, "F11")
+        set_cell(ws, "G8", zaduzio)
+        set_cell(ws, "F9", objekat)
+        set_cell(ws, "F10", adresa)
+        set_cell(ws, "F11", mesto)
 
+        # OTPREMNICA - pomereno jednu kolonu desno
         for i, d in enumerate(devices):
             r = 14 + i
-            ws[f"A{r}"] = i+1; center(ws, f"A{r}")
-            ws[f"B{r}"] = d["Name"]; center(ws, f"B{r}")
-            ws[f"C{r}"] = d["Model"]; center(ws, f"C{r}")
-            ws[f"D{r}"] = d["InventoryNumber"]; center(ws, f"D{r}")
-            ws[f"E{r}"] = d["SerialNumber"]; center(ws, f"E{r}")
-            ws[f"F{r}"] = d["SPInventoryNumber"]; center(ws, f"F{r}")
+            set_cell(ws, f"B{r}", i + 1)
+            set_cell(ws, f"C{r}", d["Name"])
+            set_cell(ws, f"D{r}", d["Model"])
+            set_cell(ws, f"E{r}", d["InventoryNumber"])
+            set_cell(ws, f"F{r}", d["SerialNumber"])
+            set_cell(ws, f"G{r}", d["SPInventoryNumber"])
 
         out = BytesIO()
         wb.save(out)
 
-        st.download_button("Preuzmi", out.getvalue(), "otpremnica.xlsx")
+        st.download_button(
+            "Preuzmi Otpremnicu",
+            data=out.getvalue(),
+            file_name="otpremnica.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # =========================
 # PRIJEMNICA
@@ -194,35 +226,48 @@ if st.session_state.doc_type == "prijemnica":
 
     broj = st.text_input("Broj")
     datum = st.date_input("Datum", value=date.today())
-    magacin = st.text_input("Iz magacina / Ime i prezime")
+    magacin = st.text_input("Iz magacina / Ime i prezime *")
     objekat = st.text_input("Objekat")
     adresa = st.text_input("Adresa")
     mesto = st.text_input("Mesto")
 
     if st.button("Generiši Prijemnicu"):
+        if not magacin.strip():
+            st.error("❌ Polje 'Iz magacina / Ime i prezime' je obavezno")
+            st.stop()
+
         df = prepare_df()
         check(df)
 
-        wb = load_workbook("prijemnica_template.xlsx")
-        ws = wb.active
+        try:
+            wb = load_workbook("prijemnica_template.xlsx")
+            ws = wb.active
+        except:
+            st.error("❌ Nije pronađen fajl: prijemnica_template.xlsx")
+            st.stop()
 
-        ws["F4"] = broj; center(ws, "F4")
-        ws["F5"] = datum.strftime("%d.%m.%Y"); center(ws, "F5")
+        set_cell(ws, "F4", broj)
+        set_cell(ws, "F5", datum.strftime("%d.%m.%Y"))
 
-        ws["B8"] = magacin; center(ws, "B8")
-        ws["F9"] = objekat; center(ws, "F9")
-        ws["F10"] = adresa; center(ws, "F10")
-        ws["F11"] = mesto; center(ws, "F11")
+        set_cell(ws, "B8", magacin)
+        set_cell(ws, "F9", objekat)
+        set_cell(ws, "F10", adresa)
+        set_cell(ws, "F11", mesto)
 
         for i, d in enumerate(devices):
             r = 14 + i
-            ws[f"A{r}"] = i+1; center(ws, f"A{r}")
-            ws[f"B{r}"] = d["Name"]; center(ws, f"B{r}")
-            ws[f"C{r}"] = d["SerialNumber"]; center(ws, f"C{r}")
-            ws[f"D{r}"] = d["SPInventoryNumber"]; center(ws, f"D{r}")
-            ws[f"E{r}"] = d["InventoryNumber"]; center(ws, f"E{r}")
+            set_cell(ws, f"A{r}", i + 1)
+            set_cell(ws, f"B{r}", d["Name"])
+            set_cell(ws, f"C{r}", d["SerialNumber"])
+            set_cell(ws, f"D{r}", d["SPInventoryNumber"])
+            set_cell(ws, f"E{r}", d["InventoryNumber"])
 
         out = BytesIO()
         wb.save(out)
 
-        st.download_button("Preuzmi", out.getvalue(), "prijemnica.xlsx")
+        st.download_button(
+            "Preuzmi Prijemnicu",
+            data=out.getvalue(),
+            file_name="prijemnica.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
