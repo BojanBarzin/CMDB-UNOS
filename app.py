@@ -11,21 +11,21 @@ st.title("📦 CMDB Unos")
 DEPLOYMENT_STATES = ["Functional", "Malfunctioned", "Retired"]
 INCIDENT_STATES = ["Operational", "Incident"]
 
-TYPE_OPTIONS = [
-    "Cash drawer",
-    "Cradle",
-    "IP Phone",
-    "Monitor",
-    "Monitor Touch Screen",
-    "Printer Pos",
-    "Printer label",
-    "Router",
-    "Switch",
-    "Scanner Counter",
-    "Scanner Hand",
-    "Scanner Terminal",
-    "UPS"
-]
+TYPE_OPTIONS = {
+    "💵 Cash drawer": "Cash drawer",
+    "📟 Cradle": "Cradle",
+    "☎️ IP Phone": "IP Phone",
+    "🖥️ Monitor": "Monitor",
+    "🖥️ Monitor Touch Screen": "Monitor Touch Screen",
+    "🧾 Printer Pos": "Printer Pos",
+    "🏷️ Printer label": "Printer label",
+    "📡 Router": "Router",
+    "🔀 Switch": "Switch",
+    "📟 Scanner Counter": "Scanner Counter",
+    "✋ Scanner Hand": "Scanner Hand",
+    "📱 Scanner Terminal": "Scanner Terminal",
+    "🔋 UPS": "UPS"
+}
 
 PROJECTS_MAP = {
     "107 Tendam": "107",
@@ -53,12 +53,12 @@ for i in range(int(count)):
     st.subheader(f"📦 Uređaj {i+1}")
 
     # =========================
-    # NAME (obavezno)
+    # 1. NAME
     # =========================
-    name = st.text_input("Name *", key=f"name{i}")
+    name = st.text_input("Name", key=f"name{i}")
 
     # =========================
-    # VENDOR (conditional)
+    # 2. VENDOR (UPS only)
     # =========================
     if name == "UPS":
         vendor = st.selectbox(
@@ -70,23 +70,29 @@ for i in range(int(count)):
         vendor = st.text_input("Vendor", key=f"vendor{i}")
 
     # =========================
-    # MODEL (conditional + OBAVEZNO)
+    # 3. MODEL (optional)
     # =========================
     if vendor == "APC":
         model = st.selectbox(
-            "Model *",
+            "Model",
             APC_MODELS,
             key=f"model{i}"
         )
     else:
-        model = st.text_input("Model *", key=f"model{i}")
-
-    if not model:
-        st.error("❌ Model je obavezan")
-        valid = False
+        model = st.text_input("Model", key=f"model{i}")
 
     # =========================
-    # SP (obavezno)
+    # 4. TYPE (ICONS)
+    # =========================
+    type_label = st.selectbox(
+        "Type",
+        list(TYPE_OPTIONS.keys()),
+        key=f"type{i}"
+    )
+    type_value = TYPE_OPTIONS[type_label]
+
+    # =========================
+    # 5. SP (OBAVEZNO)
     # =========================
     sp = st.text_input("SPInventoryNumber *", key=f"sp{i}")
     sp_clean = sp.strip()
@@ -95,25 +101,49 @@ for i in range(int(count)):
         st.error("❌ SP je obavezan")
         valid = False
     elif len(sp_clean) != 7:
-        st.error("❌ SP mora imati 7 karaktera")
+        st.error("❌ SP mora imati tačno 7 karaktera")
         valid = False
     elif not (sp_clean.startswith("FS") or sp_clean.startswith("SP")):
         st.error("❌ SP mora počinjati sa FS ili SP")
         valid = False
 
     # =========================
-    # OPTIONAL FIELDS (VRACENO SVE)
+    # 6. INVENTORY
     # =========================
-    type_label = st.selectbox("Type", TYPE_OPTIONS, key=f"type{i}")
-
-    deployment = st.selectbox("Deployment State", DEPLOYMENT_STATES, key=f"dep{i}")
-    incident = st.selectbox("Incident State", INCIDENT_STATES, key=f"inc{i}")
-
-    project_label = st.selectbox("Project", PROJECTS_LABELS, key=f"proj{i}")
-    project_value = PROJECTS_MAP[project_label]
-
-    serial = st.text_input("SerialNumber", key=f"serial{i}")
     inventory = st.text_input("InventoryNumber", key=f"inv{i}")
+
+    # =========================
+    # 7. SERIAL
+    # =========================
+    serial = st.text_input("SerialNumber", key=f"serial{i}")
+
+    # =========================
+    # 8. DEPLOYMENT
+    # =========================
+    deployment = st.selectbox(
+        "Deployment State",
+        DEPLOYMENT_STATES,
+        key=f"dep{i}"
+    )
+
+    # =========================
+    # 9. INCIDENT
+    # =========================
+    incident = st.selectbox(
+        "Incident State",
+        INCIDENT_STATES,
+        key=f"inc{i}"
+    )
+
+    # =========================
+    # 10. PROJECT
+    # =========================
+    project_label = st.selectbox(
+        "Project",
+        PROJECTS_LABELS,
+        key=f"proj{i}"
+    )
+    project_value = PROJECTS_MAP[project_label]
 
     # =========================
     # SAVE
@@ -122,13 +152,13 @@ for i in range(int(count)):
         "Name": name,
         "Vendor": vendor,
         "Model": model,
-        "Type": type_label,
+        "Type": type_value,
+        "SPInventoryNumber": sp_clean,
+        "InventoryNumber": inventory,
+        "SerialNumber": serial,
         "Deployment State": deployment,
         "Incident State": incident,
-        "Project": project_value,
-        "SerialNumber": serial,
-        "InventoryNumber": inventory,
-        "SPInventoryNumber": sp_clean
+        "Project": project_value
     })
 
 # =========================
